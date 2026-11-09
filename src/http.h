@@ -44,3 +44,7 @@ HttpResponse httpPostForm(const std::string& url, const std::string& form,
                           const std::string& referer = std::string());
 // a json body, for webhook endpoints
 HttpResponse httpPostJson(const std::string& url, const std::string& json);
+
+// run a command with no console window flashing; output collects stdout+stderr,
+// the return value is the process exit code (-1 when it could not start)
+int runHiddenCommand(const std::string& commandLine, std::string& output);

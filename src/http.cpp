@@ -424,14 +424,10 @@ HttpResponse httpGetCatalog(const std::string& url) {
                         std::to_string(hash & 0xffffffu) + ".tmp";
   std::string command = "curl.exe -sS -L --max-time 60 -A \"" + g_userAgent + "\" -w \"%{http_code}\" -o \"" +
                         outPath + "\" \"" + url + "\"";
-  FILE* pipe = _popen(command.c_str(), "r");
-  if (pipe) {
-    char codeText[16] = "";
-    if (fgets(codeText, sizeof(codeText), pipe)) {
-      response.status = std::strtol(codeText, nullptr, 10);
-    }
-    _pclose(pipe);
-  }
+  std::string curlOut;
+  int curlCode = runHiddenCommand(command, curlOut);
+  if (curlCode == 0) response.status = std::strtol(trim(curlOut).c_str(), nullptr, 10);
+
   std::ifstream stream(outPath, std::ios::binary);
   if (stream) {
     std::ostringstream buffer;
@@ -470,6 +466,49 @@ HttpResponse httpPostForm(const std::string& url, const std::string& form, const
   }
   headers.push_back("Referer: " + (referer.empty() ? url : referer));
   return httpRequest(url, "POST", headers, true, false, 0, form);
+}
+
+int runHiddenCommand(const std::string& commandLine, std::string& output) {
+  output.clear();
+  SECURITY_ATTRIBUTES attrs{};
+  attrs.nLength = sizeof(attrs);
+  attrs.bInheritHandle = TRUE;
+  HANDLE readPipe = nullptr;
+  HANDLE writePipe = nullptr;
+  if (!CreatePipe(&readPipe, &writePipe, &attrs, 0)) return -1;
+  SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
+
+  STARTUPINFOA info{};
+  info.cb = sizeof(info);
+  info.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+  info.wShowWindow = SW_HIDE;
+  info.hStdOutput = writePipe;
+  info.hStdError = writePipe;
+  info.hStdInput = nullptr;
+
+  PROCESS_INFORMATION child{};
+  std::string mutableCommand = commandLine;
+  // the console window the shell would otherwise flash lives and dies here
+  BOOL started = CreateProcessA(nullptr, mutableCommand.data(), nullptr, nullptr, TRUE,
+                                CREATE_NO_WINDOW, nullptr, nullptr, &info, &child);
+  CloseHandle(writePipe);
+  if (!started) {
+    CloseHandle(readPipe);
+    return -1;
+  }
+  char buffer[1024];
+  DWORD got = 0;
+  while (ReadFile(readPipe, buffer, sizeof(buffer) - 1, &got, nullptr) && got > 0) {
+    buffer[got] = '\0';
+    output += buffer;
+  }
+  WaitForSingleObject(child.hProcess, INFINITE);
+  DWORD code = 0;
+  GetExitCodeProcess(child.hProcess, &code);
+  CloseHandle(child.hProcess);
+  CloseHandle(child.hThread);
+  CloseHandle(readPipe);
+  return static_cast<int>(code);
 }
 
 HttpResponse httpPostJson(const std::string& url, const std::string& json) {

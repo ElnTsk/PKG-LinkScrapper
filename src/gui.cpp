@@ -669,7 +669,13 @@ std::string columnText(const Hit& hit, int column) {
     case 1: return hit.state;
     case 2: return hit.trust;
     case 3: return hit.size;
-    case 4: return partsLabel(hit);
+    case 4: {
+      std::string label = partsLabel(hit);
+      if (!label.empty()) {
+        label += g.expanded.count(hit.url) ? "  \xE2\x96\xBE" : "  \xE2\x96\xB8";
+      }
+      return label;
+    }
     case 5: return pingText(hit);
     case 6: return hit.host;
     case 7: return hit.title;
@@ -1052,6 +1058,22 @@ BOOL drawRow(HDC dc, int position, const RECT& bounds, UINT itemState) {
 
     std::wstring text = widen(columnText(hit, column));
     if (text.empty()) continue;
+
+    // the parts cell is a door: a white box around it says so
+    if (column == kPartsColumn && !hit.isChild && hit.partCount >= 2) {
+      RECT frame = cell;
+      frame.left += 2;
+      frame.right -= 2;
+      frame.top += 3;
+      frame.bottom -= 4;
+      HPEN pen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
+      HGDIOBJ oldPen = SelectObject(dc, pen);
+      HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+      Rectangle(dc, frame.left, frame.top, frame.right, frame.bottom);
+      SelectObject(dc, oldBrush);
+      SelectObject(dc, oldPen);
+      DeleteObject(pen);
+    }
 
     COLORREF ink = p.text;
     if (column == 1 && !selected) ink = state;

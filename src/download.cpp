@@ -22,6 +22,7 @@
 #include <winhttp.h>
 
 #include "deadstore.h"
+#include "http.h"
 #include "util.h"
 
 namespace {
@@ -236,15 +237,12 @@ bool openAttempt(const UrlParts& parts, long long resume, Attempt& attempt, std:
 bool curlDownload(const std::string& url, const std::string& partPath, long long resume,
                   std::string& error) {
   std::string command = "curl.exe -sS -L --fail -C - -o \"" + partPath + "\" \"" + url + "\"";
-  FILE* pipe = _popen(command.c_str(), "r");
-  if (!pipe) {
-    error = "cannot start curl";
-    return false;
-  }
-  char line[256];
+  std::string output;
+  int code = runHiddenCommand(command, output);
   std::string lastLine;
-  while (fgets(line, sizeof(line), pipe)) lastLine = trim(line);
-  int code = _pclose(pipe);
+  for (const std::string& line : splitLines(output)) {
+    if (!trim(line).empty()) lastLine = trim(line);
+  }
   std::ifstream check(partPath, std::ios::binary | std::ios::ate);
   long long size = check ? static_cast<long long>(check.tellg()) : 0;
   if (code == 0 && size > resume) return true;
