@@ -6,3 +6,4 @@ f50f3a	2026-11-09T22:18:49.741Z	gofile.io	pegasus-dlps	Astrobot	https://gofile.i
 6f3ebc	2026-11-09T22:18:51.441Z	mediafire.com	pegasus-dlps	Astrobot	https://www.mediafire.com/file/tqyxat9dad2pjag/[DLPSGAME.COM]+-+01.018+PPSA21567+FIXED.part01.rar/file
 04b9d7	2026-11-09T22:18:53.448Z	mediafire.com	pegasus-dlps	Astrobot	https://www.mediafire.com/file/y5hpd4u978k059e/[DLPSGAME.COM]+-+01.018+PPSA21567+FIXED.part02.rar/file
 857dae	2026-11-09T22:18:55.277Z	mediafire.com	pegasus-dlps	Astrobot	https://www.mediafire.com/file/mktekgxay583l2x/[DLPSGAME.COM]+-+01.018+PPSA21567+FIXED.part03.rar/file
+6684a0	2026-11-09T22:18:57.382Z	vikingfile.com	pegasus-dlps	Astrobot	https://vikingfile.com/f/8juP07CxuW
