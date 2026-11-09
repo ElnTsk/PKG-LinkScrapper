@@ -1741,7 +1741,9 @@ void downloadRow(const Hit& hit) {
   if (urls.empty()) {
     std::string host = registrable(bareHost(hit.url));
     if (shareServesPage(host) && !resolvableHost(hit.url)) {
-      setStatusText(0, host + " only hands the file to a browser click - open the row and use its button");
+      // the working path for these is the browser the host trusts
+      ShellExecuteA(g.window, "open", hit.url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+      setStatusText(0, host + " needs a browser click - opened it, download from there");
       return;
     }
   }

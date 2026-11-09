@@ -124,10 +124,19 @@ What it will not do:
   in the response can confirm a link. `shell` means "the page is up, the file is
   unproven".
 
-**1fichier** used to be walked in-app - the poster form posted, the mirror link
-extracted. Since the site started putting an account wall in front of anonymous
-visitors, the walk reports that plainly (`1fichier now asks for an account`) and
-the row stays `gated`: open it, sign in, download from there.
+**1fichier**, **rootz.so** and **vikingfile** put an account wall in front of
+anonymous visitors. Give the tool a signed-in session and it walks them again:
+paste one line per host into `%APPDATA%PKG-LinkScrappercookies.txt`
+
+```
+rootz.so<TAB>the whole Cookie header your browser sends
+vikingfile.com<TAB>...
+1fichier.com<TAB>...
+```
+
+Without a cookie those rows stay `gated` and Download opens the link in your
+browser instead of queueing a failure. Hosts with no walker at all (akirabox,
+gofile, datanodes, terabox…) always open in the browser.
 
 ## Finding the right game
 

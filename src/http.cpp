@@ -403,6 +403,10 @@ HttpResponse httpGet(const std::string& url, bool useCache) {
   return httpRequest(url, "GET", std::vector<std::string>{}, true, useCache);
 }
 
+HttpResponse httpGetWith(const std::string& url, const std::vector<std::string>& headers) {
+  return httpRequest(url, "GET", headers, true, false, 0);
+}
+
 HttpResponse httpGetCatalog(const std::string& url) {
   HttpResponse response =
       httpRequest(url, "GET", std::vector<std::string>{}, true, true, 12000, std::string(),
@@ -454,9 +458,11 @@ HttpResponse httpGetRangeNoFollow(const std::string& url) {
   return httpRequest(url, "GET", std::vector<std::string>{"Range: bytes=0-0"}, false, false);
 }
 
-HttpResponse httpPostForm(const std::string& url, const std::string& form, const std::string& referer) {
+HttpResponse httpPostForm(const std::string& url, const std::string& form, const std::string& referer,
+                          const std::string& cookie) {
   std::vector<std::string> headers;
   headers.push_back("Content-Type: application/x-www-form-urlencoded");
+  if (!cookie.empty()) headers.push_back("Cookie: " + cookie);
   UrlParts parts = crackUrl(url);
   if (parts.valid) {
     // the origin a browser would send, which several hosts insist on

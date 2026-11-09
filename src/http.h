@@ -34,6 +34,8 @@ HttpResponse httpRequest(const std::string& url,
                          size_t maxBodyBytes = 0);
 
 HttpResponse httpGet(const std::string& url, bool useCache = true);
+// a GET with extra request headers, uncached - for authenticated walks
+HttpResponse httpGetWith(const std::string& url, const std::vector<std::string>& headers);
 // a json catalog is megabytes, not a page: bigger cap, longer fuse, cached
 HttpResponse httpGetCatalog(const std::string& url);
 HttpResponse httpHeadWithRange(const std::string& url);
@@ -41,7 +43,8 @@ HttpResponse httpGetRangeNoFollow(const std::string& url);
 // the form post a share page needs before it will name the file. never cached:
 // the answer is a one-time link
 HttpResponse httpPostForm(const std::string& url, const std::string& form,
-                          const std::string& referer = std::string());
+                          const std::string& referer = std::string(),
+                          const std::string& cookie = std::string());
 // a json body, for webhook endpoints
 HttpResponse httpPostJson(const std::string& url, const std::string& json);
 
