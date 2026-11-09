@@ -299,7 +299,7 @@ void printSources(const Config& config, const std::string& exeDir) {
 
   for (const Source& source : config.sources) {
     std::string name = source.name + std::string(nameWidth - source.name.size(), ' ');
-    std::string type = source.type + std::string(std::max<size_t>(0, 6 - source.type.size()), ' ');
+    std::string type = source.type + std::string(source.type.size() < 6 ? 6 - source.type.size() : 0, ' ');
     lines.push_back(row({name, type, "enabled", source.origin}));
   }
 
