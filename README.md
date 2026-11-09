@@ -60,7 +60,7 @@ part URLs on a set.
 Right-click any row → **Report dead link**. The tool sends one report to the
 project's log (Discord) with the game, host, source and url, and tags the
 maintainer. Each report gets a ✅ / ❌ after a look: approved links are written to
-[deadlinks.txt](https://github.com/ElnTsk/PKG-LinkScrapper/blob/main/deadlinks.txt),
+[dead links database](https://github.com/ElnTsk/PKG-LinkScrapper/blob/main/Dead%20Links%20Database.txt),
 and the tool reads that file on the next hunt and stops offering them; rejected
 reports are dropped. One report per link — the menu says "already reported"
 after the first.

@@ -24,7 +24,7 @@ const char* kWebhook =
     "F5Rpsl3Cfefg-lLIYJzoLpc2PlGi-qPr8-moiFLJkQ_I1EZq05A3x2z8hJ8XNictRJzc";
 const char* kOwnerId = "413515992790990848";
 const char* kReportList =
-    "https://raw.githubusercontent.com/ElnTsk/PKG-LinkScrapper/main/deadlinks.txt";
+    "https://raw.githubusercontent.com/ElnTsk/PKG-LinkScrapper/main/Dead%20Links%20Database.txt";
 
 std::string reportedPath() { return stateDirectory() + "\\reported.tsv"; }
 
