@@ -28,7 +28,7 @@
 
 namespace {
 
-const char* kVersion = "1.0.1";
+const char* kVersion = "1.0.2";
 
 std::string helpText() {
   std::string text;
@@ -47,7 +47,7 @@ std::string helpText() {
   text += "  --console <ps4|ps5|both>       default both\n";
   text += "  --threshold <0..1>             name match strictness, default from config (0.72)\n";
   text += "  --limit <n>                    max hits per game, default from config (40)\n";
-  text += "  --max-fetch <n>                max pages crawled per game, default from config (14)\n";
+  text += "  --max-fetch <n>                max pages crawled per game, default from config (32)\n";
   text += "  --no-verify                    skip liveness probing\n";
   text += "  --refresh                      probe every link, even known-good ones\n";
   text += "  --trusted-only                 list only recommended links\n";
