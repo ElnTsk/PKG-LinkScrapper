@@ -3120,15 +3120,20 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
               report.state = hit->state;
               report.size = hit->size;
               report.title = hit->title;
+              // a link the reporter calls dead does not come back next hunt,
+              // reported or not
+              rememberDead(*hit, true);
+              rebuildRows();
+              populateList();
               if (alreadyReported) {
-                setStatusText(0, "this link was reported before - the log keeps one line per link");
+                setStatusText(0, "already reported - hidden from the list");
               } else {
                 setStatusText(0, "reporting dead link #" + deadReportCode(hit->url) + " ...");
                 std::thread([report] {
                   std::string error;
                   bool sent = sendDeadReport(report, error);
-                  std::string text = sent ? "dead link reported - the owner was tagged"
-                                          : "report failed: " + error;
+                  std::string text = sent ? "dead link reported and hidden - the owner was tagged"
+                                          : "report failed: " + error + " - the link is hidden locally";
                   PostMessageW(g.window, WM_APP_REPORT_DONE, sent ? 1 : 0,
                                reinterpret_cast<LPARAM>(new std::string(text)));
                 }).detach();
