@@ -105,9 +105,12 @@ fold its members open underneath, `Left` to fold them back.
 ## Downloading
 
 Press **Download** and pick a folder first — the picker opens before anything
-starts. The download window then shows each file, MB/s, total progress, and
-Cancel. Interrupted downloads resume: pressing Download again continues from
-the `.part` file instead of starting over.
+starts. A green progress bar appears under the grid and fills as the file
+lands; the details line under it carries the current file and speed. There is
+no second window unless you ask for one (right-click → Downloads window). If a
+transfer fails, a box says so and reminds you that double-clicking the row opens
+the link in your browser. Interrupted downloads resume: pressing Download again
+continues from the `.part` file instead of starting over.
 
 What it will not do:
 

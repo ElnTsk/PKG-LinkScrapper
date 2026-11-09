@@ -192,6 +192,11 @@ struct Ui {
   HWND limit = nullptr;
   HWND thresholdLabel = nullptr;
   HWND timerLabel = nullptr;
+  HWND dlBar = nullptr;
+  double dlFraction = 0;
+  bool dlWasBusy = false;
+  int dlLastDone = 0;
+  int dlLastFailed = 0;
   HWND threshold = nullptr;
   int64_t huntStartedMs = 0;
   HWND verify = nullptr;
@@ -1162,6 +1167,7 @@ void layoutControls() {
 
   MoveWindow(g.list, margin, listTop, width, client.bottom - listTop - statusHeight - detailsHeight - margin - gap, TRUE);
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
+  MoveWindow(g.dlBar, margin, client.bottom - statusHeight - 9, width, 6, TRUE);
   MoveWindow(g.status, 0, client.bottom - statusHeight, client.right, statusHeight, TRUE);
 
   int rightEdge = static_cast<int>(client.right);
@@ -1181,6 +1187,33 @@ HWND createControl(HWND parent, const char* className, const char* text, DWORD s
                                  parent, reinterpret_cast<HMENU>(id), instance, nullptr);
   SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
   return control;
+}
+
+LRESULT CALLBACK dlBarProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+  if (message == WM_PAINT) {
+    PAINTSTRUCT ps{};
+    HDC dc = BeginPaint(hwnd, &ps);
+    RECT area{};
+    GetClientRect(hwnd, &area);
+    const Palette& p = palette();
+    HBRUSH back = CreateSolidBrush(p.field);
+    FillRect(dc, &area, back);
+    DeleteObject(back);
+    int filled = static_cast<int>(area.right * g.dlFraction);
+    if (filled < 3) filled = 3;  // visible while the connection is still opening
+    if (filled > 0) {
+      RECT fill{0, 0, filled, area.bottom};
+      HBRUSH green = CreateSolidBrush(RGB(46, 160, 67));
+      FillRect(dc, &fill, green);
+      DeleteObject(green);
+    }
+    HBRUSH border = CreateSolidBrush(p.border);
+    FrameRect(dc, &area, border);
+    DeleteObject(border);
+    EndPaint(hwnd, &ps);
+    return 0;
+  }
+  return DefWindowProcA(hwnd, message, wParam, lParam);
 }
 
 LRESULT CALLBACK gamesSubclass(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -1723,6 +1756,11 @@ std::string pickFolderLegacy(HWND owner, const std::string& initial) {
 }
 
 std::string pickFolder(HWND owner) {
+  // a folder named up front skips the dialog - for scripts and for testing
+  const char* preset = std::getenv("PKG_LS_AUTO_FOLDER");
+  if (preset && *preset && GetFileAttributesA(preset) != INVALID_FILE_ATTRIBUTES) {
+    return preset;
+  }
   std::string initial = downloadsFolderDefault();
   std::string picked;
   if (pickFolderModern(owner, initial, picked)) return picked;
@@ -1816,7 +1854,6 @@ void startDownloads(const std::vector<std::string>& urls) {
   std::vector<std::string> ids = downloadsAdd(queue, folder, names);
   downloadsStart(3);
   dl.allPaused = false;
-  showDownloadsWindow();
   refreshDownloads();
   std::string note = "downloading " + std::to_string(ids.size()) + " file(s) to " + folder;
   if (anyResolvable) note += " - through the host's own download page";
@@ -2764,6 +2801,9 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                                   IDC_THRESHOLD, instance);
       g.timerLabel = createControl(window, "STATIC", "", SS_LEFT, 0, IDC_TIMER_LABEL, instance);
       SendMessageW(g.timerLabel, WM_SETFONT, reinterpret_cast<WPARAM>(g.bold), TRUE);
+      g.dlBar = createControl(window, "STATIC", "", SS_LEFT, 0, 0, instance);
+      SetWindowLongPtrA(g.dlBar, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(dlBarProc));
+      ShowWindow(g.dlBar, SW_HIDE);
       g.verify = createControl(window, "BUTTON", "Verify Links", BS_OWNERDRAW | WS_TABSTOP, 0,
                                IDC_VERIFY, instance);
       g.checkVerify = true;
@@ -3190,6 +3230,40 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           if (editText(g.timerLabel) != seconds) setEditText(g.timerLabel, seconds);
         } else if (!g.running && !editText(g.timerLabel).empty()) {
           setEditText(g.timerLabel, "");
+        }
+        if (downloadsBusy()) {
+          std::vector<DownloadItem> items = downloadsSnapshot();
+          double done = 0;
+          int finished = 0;
+          int failed = 0;
+          for (const DownloadItem& item : items) {
+            if (item.state == "done") {
+              done += 1;
+              ++finished;
+            } else if (item.state == "running" && item.totalBytes > 0) {
+              done += static_cast<double>(item.doneBytes) / static_cast<double>(item.totalBytes);
+            }
+            if (item.state == "failed") ++failed;
+          }
+          g.dlFraction = items.empty() ? 0 : done / static_cast<double>(items.size());
+          if (g.dlFraction > 1) g.dlFraction = 1;
+          if (!g.dlWasBusy) ShowWindow(g.dlBar, SW_SHOW);
+          InvalidateRect(g.dlBar, nullptr, TRUE);
+          g.dlWasBusy = true;
+          g.dlLastDone = finished;
+          g.dlLastFailed = failed;
+        } else if (g.dlWasBusy) {
+          g.dlWasBusy = false;
+          ShowWindow(g.dlBar, SW_HIDE);
+          if (g.dlLastFailed > 0) {
+            setStatusText(0, std::to_string(g.dlLastFailed) + " download(s) failed - double-click the row to open it in your browser");
+            MessageBoxW(g.window,
+                        L"The download failed.\n\nDouble-click the row to open the link in your "
+                        L"browser.",
+                        L"PKG-LinkScrapper", MB_OK | MB_ICONWARNING);
+          } else if (g.dlLastDone > 0) {
+            setStatusText(0, std::to_string(g.dlLastDone) + " file(s) downloaded");
+          }
         }
         showDetails();
       }

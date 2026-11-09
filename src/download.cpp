@@ -3,6 +3,7 @@
 #include "hosts.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
@@ -230,6 +231,27 @@ bool openAttempt(const UrlParts& parts, long long resume, Attempt& attempt, std:
   return true;
 }
 
+// winhttp stalls on machines whose ipv6 route to a cdn edge is dead; curl walks
+// through, so a transport failure gets one more attempt through the system curl
+bool curlDownload(const std::string& url, const std::string& partPath, long long resume,
+                  std::string& error) {
+  std::string command = "curl.exe -sS -L --fail -C - -o \"" + partPath + "\" \"" + url + "\"";
+  FILE* pipe = _popen(command.c_str(), "r");
+  if (!pipe) {
+    error = "cannot start curl";
+    return false;
+  }
+  char line[256];
+  std::string lastLine;
+  while (fgets(line, sizeof(line), pipe)) lastLine = trim(line);
+  int code = _pclose(pipe);
+  std::ifstream check(partPath, std::ios::binary | std::ios::ate);
+  long long size = check ? static_cast<long long>(check.tellg()) : 0;
+  if (code == 0 && size > resume) return true;
+  error = lastLine.empty() ? ("curl exited " + std::to_string(code)) : lastLine;
+  return false;
+}
+
 void transfer(Job* job) {
   UrlParts start = crackUrl(job->item.url);
   if (!start.valid) {
@@ -285,7 +307,20 @@ void transfer(Job* job) {
     }
 
     if (!received) {
-      finish(job, "failed", "no response from " + parts.host);
+      std::string curlError;
+      if (!job->abort.load() && curlDownload(job->item.url, job->item.partPath, resume, curlError)) {
+        std::ifstream finalSize(job->item.partPath, std::ios::binary | std::ios::ate);
+        if (finalSize) {
+          long long bytes = static_cast<long long>(finalSize.tellg());
+          job->doneBytes.store(bytes);
+          job->item.totalBytes = bytes;
+          job->item.doneBytes = bytes;
+        }
+        finish(job, "done");
+        return;
+      }
+      finish(job, "failed", "no response from " + parts.host +
+                                (curlError.empty() ? "" : " (" + curlError + ")"));
       return;
     }
 

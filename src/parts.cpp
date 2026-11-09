@@ -113,6 +113,33 @@ Detect detect(const std::string& url) {
   return out;
 }
 
+// "part 1", "part03", "part.2" - the number a catalog puts in the link name
+// when the file host itself hides it behind an opaque token
+bool matchPartWord(const std::string& lower, Detect& out) {
+  size_t pos = 0;
+  while ((pos = lower.find("part", pos)) != std::string::npos) {
+    size_t cursor = pos + 4;
+    while (cursor < lower.size() && (lower[cursor] == ' ' || lower[cursor] == '.' ||
+                                     lower[cursor] == '-' || lower[cursor] == '_' ||
+                                     lower[cursor] == '	')) {
+      ++cursor;
+    }
+    size_t digitsStart = cursor;
+    while (cursor < lower.size() && std::isdigit(static_cast<unsigned char>(lower[cursor]))) ++cursor;
+    if (cursor > digitsStart) {
+      int index = toInt(lower.substr(digitsStart, cursor - digitsStart));
+      if (index > 0 && index < 1000) {
+        out.isPart = true;
+        out.index = index;
+        out.key = lower.substr(0, pos) + lower.substr(cursor);
+        return true;
+      }
+    }
+    pos += 4;
+  }
+  return false;
+}
+
 std::string setFolder(const std::string& url) {
   UrlParts parts = crackUrl(url);
   if (!parts.valid) return normalizeUrl(url);
@@ -132,18 +159,28 @@ std::vector<Hit> groupParts(const std::vector<Hit>& hits) {
   for (const Hit& hit : hits) byUrl[normalizeUrl(hit.url)] = &hit;
 
   std::map<std::string, size_t> slots;
+  std::map<std::string, int> memberIndex;
   std::vector<Hit> rows;
   rows.reserve(hits.size());
 
   for (const Hit& hit : hits) {
     Detect found = detect(hit.url);
+    bool fromTitle = false;
+    if (!found.isPart) {
+      Detect titleFound;
+      if (!hit.title.empty() && matchPartWord(toLowerAscii(hit.title), titleFound)) {
+        found = titleFound;
+        fromTitle = true;
+      }
+    }
 
     if (!found.isPart) {
       rows.push_back(hit);
       continue;
     }
+    memberIndex[normalizeUrl(hit.url)] = found.index;
 
-    std::string key = setFolder(hit.url) + "|" + found.key;
+    std::string key = (fromTitle ? std::string("T|") : setFolder(hit.url) + "|") + found.key;
     auto existing = slots.find(key);
     if (existing == slots.end()) {
       Hit row = hit;
@@ -166,7 +203,10 @@ std::vector<Hit> groupParts(const std::vector<Hit>& hits) {
 
     std::vector<std::pair<int, std::string>> members;
     members.reserve(row.partUrls.size());
-    for (const std::string& url : row.partUrls) members.emplace_back(detect(url).index, url);
+    for (const std::string& url : row.partUrls) {
+      auto known = memberIndex.find(normalizeUrl(url));
+      members.emplace_back(known == memberIndex.end() ? 0 : known->second, url);
+    }
     std::sort(members.begin(), members.end(), [](const auto& a, const auto& b) {
       if (a.first != b.first) return a.first < b.first;
       return a.second < b.second;
@@ -214,6 +254,18 @@ std::string partGroupKey(const std::string& url) {
   return setFolder(url) + "|" + found.key;
 }
 
+namespace {
+std::string groupKeyForHit(const Hit& hit) {
+  Detect found = detect(hit.url);
+  if (found.isPart) return setFolder(hit.url) + "|" + found.key;
+  Detect titleFound;
+  if (!hit.title.empty() && matchPartWord(toLowerAscii(hit.title), titleFound)) {
+    return "T|" + titleFound.key;
+  }
+  return std::string();
+}
+}  // namespace
+
 std::vector<Hit> trimByGroup(const std::vector<Hit>& hits, size_t rowLimit) {
   std::set<std::string> kept;
   std::set<std::string> dropped;
@@ -222,7 +274,7 @@ std::vector<Hit> trimByGroup(const std::vector<Hit>& hits, size_t rowLimit) {
   size_t rows = 0;
 
   for (const Hit& hit : hits) {
-    std::string key = partGroupKey(hit.url);
+    std::string key = groupKeyForHit(hit);
 
     if (key.empty()) {
       if (rows < rowLimit) {
