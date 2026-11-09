@@ -30,6 +30,12 @@ DirectLink oneFichier(const std::string& url) {
   }
 
   std::string lower = toLowerAscii(form.body);
+  // the site now hands anonymous visitors an account wall instead of the mirror
+  if (lower.find("sign in and download") != std::string::npos ||
+      lower.find("login.pl") != std::string::npos) {
+    link.note = "1fichier now asks for an account - open the link, sign in, and use its button";
+    return link;
+  }
   size_t links = 0;
   size_t here = 0;
   for (const RawAnchor& anchor : rawAnchors(form.body)) {

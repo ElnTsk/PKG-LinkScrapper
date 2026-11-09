@@ -124,10 +124,10 @@ What it will not do:
   in the response can confirm a link. `shell` means "the page is up, the file is
   unproven".
 
-One exception is walked in-app: **1fichier** share links are resolved to their
-real mirror on click (the poster form is posted, the mirror link extracted).
-1fichier gives free users one download slot — if a queue message comes back, the
-details pane says so and asks for a few minutes.
+**1fichier** used to be walked in-app - the poster form posted, the mirror link
+extracted. Since the site started putting an account wall in front of anonymous
+visitors, the walk reports that plainly (`1fichier now asks for an account`) and
+the row stays `gated`: open it, sign in, download from there.
 
 ## Finding the right game
 
