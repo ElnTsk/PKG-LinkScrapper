@@ -323,6 +323,9 @@ void applyOverrides(const Options& opts, Config& config) {
 int runHunt(const Options& opts, Config& config, const std::vector<std::string>& games) {
   if (games.empty()) return 0;
 
+  // catalogs are one download per process; do it before the clock starts
+  warmCatalogs(config);
+
   std::vector<std::string> dead;
   applyDeadVerdicts();
   loadDeadStore(dead);

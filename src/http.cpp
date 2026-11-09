@@ -5,7 +5,9 @@
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <mutex>
 #include <random>
 #include <set>
@@ -402,8 +404,50 @@ HttpResponse httpGet(const std::string& url, bool useCache) {
 }
 
 HttpResponse httpGetCatalog(const std::string& url) {
-  return httpRequest(url, "GET", std::vector<std::string>{}, true, true, 30000, std::string(),
-                     12u << 20);
+  HttpResponse response =
+      httpRequest(url, "GET", std::vector<std::string>{}, true, true, 12000, std::string(),
+                  12u << 20);
+  if (response.status != 0) return response;
+
+  // a machine with a half-broken IPv6 route makes winhttp time out on cloudflare
+  // fronts while curl walks straight through; the system curl is the second way
+  // in for the one download that matters most
+  unsigned int hash = 2166136261u;
+  for (unsigned char ch : url) {
+    hash ^= ch;
+    hash *= 16777619u;
+  }
+  char tempDir[MAX_PATH] = "";
+  GetTempPathA(MAX_PATH, tempDir);
+  std::string outPath = std::string(tempDir) + "pkg-ls-" +
+                        std::to_string(static_cast<unsigned long>(GetCurrentProcessId())) + "-" +
+                        std::to_string(hash & 0xffffffu) + ".tmp";
+  std::string command = "curl.exe -sS -L --max-time 60 -A \"" + g_userAgent + "\" -w \"%{http_code}\" -o \"" +
+                        outPath + "\" \"" + url + "\"";
+  FILE* pipe = _popen(command.c_str(), "r");
+  if (pipe) {
+    char codeText[16] = "";
+    if (fgets(codeText, sizeof(codeText), pipe)) {
+      response.status = std::strtol(codeText, nullptr, 10);
+    }
+    _pclose(pipe);
+  }
+  std::ifstream stream(outPath, std::ios::binary);
+  if (stream) {
+    std::ostringstream buffer;
+    buffer << stream.rdbuf();
+    response.body = buffer.str();
+    if (response.body.size() > (12u << 20)) response.body.resize(12u << 20);
+    stream.close();
+    DeleteFileA(outPath.c_str());
+  }
+  if (response.status == 200 && !response.body.empty()) {
+    response.finalUrl = url;
+    logDebug("catalog fetched through curl " + url);
+  } else if (response.status == 0) {
+    response.error = "curl fallback failed";
+  }
+  return response;
 }
 
 HttpResponse httpHeadWithRange(const std::string& url) {

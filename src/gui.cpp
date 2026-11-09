@@ -2816,6 +2816,13 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       SetTimer(window, DETAILS_TIMER, 400, nullptr);
 
       SetFocus(g.games);
+      // pull the catalogs in the background so the first hunt is not waiting
+      // on a 12 MB download inside its thirty seconds
+      std::thread([] {
+        std::string warmError;
+        Config warmConfig;
+        if (loadConfig(warmConfig, exeDirectory(), "", warmError)) warmCatalogs(warmConfig);
+      }).detach();
       applyDeadVerdicts();
       loadDeadStore(g.dead);
       setDeadStore(&g.dead);
@@ -3059,12 +3066,19 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
               bool open = g.expanded.count(hit->url) != 0;
               AppendMenuA(menu, MF_STRING, 8, open ? "Hide the part list" : "Show the part list");
             }
+            AppendMenuA(menu, MF_SEPARATOR, 0, nullptr);
             if (!grab.empty()) {
-              AppendMenuA(menu, MF_SEPARATOR, 0, nullptr);
               std::string label = grouped
-                                      ? "Download all parts (" + std::to_string(grab.size()) + ")"
-                                  : "Download this file";
+                                      ? "Direct download - all parts (" +
+                                            std::to_string(grab.size()) + ")"
+                                  : "Direct download";
               AppendMenuA(menu, MF_STRING, 9, label.c_str());
+            } else {
+              // still shown, so it is clear the host is the reason, not the tool
+              const char* reason = pullable(hit->url, hit->state)
+                                       ? "Direct download - pick a row with a live link"
+                                       : "Direct download - this host wants a browser click";
+              AppendMenuA(menu, MF_STRING | MF_GRAYED, 9, reason);
             }
             AppendMenuA(menu, MF_SEPARATOR, 0, nullptr);
             AppendMenuA(menu, MF_STRING, 2, "Copy URL");

@@ -507,7 +507,7 @@ void runSearch(Ctx& ctx, const Source& source) {
 std::mutex g_catalogMutex;
 std::map<std::string, std::shared_ptr<const std::vector<CatalogEntry>>> g_catalogs;
 
-std::shared_ptr<const std::vector<CatalogEntry>> catalogEntries(Ctx& ctx, const std::string& url) {
+std::shared_ptr<const std::vector<CatalogEntry>> catalogEntries(const std::string& url) {
   {
     std::lock_guard<std::mutex> lock(g_catalogMutex);
     auto found = g_catalogs.find(url);
@@ -537,10 +537,15 @@ std::shared_ptr<const std::vector<CatalogEntry>> catalogEntries(Ctx& ctx, const 
 void runCatalog(Ctx& ctx, const Source& source) {
   const std::string consoleHint =
       source.console.empty() ? std::string() : toUpperAscii(source.console);
+  // a ps4 catalog cannot answer a ps5 hunt - do not spend the download on it
+  if (!consoleHint.empty() && ctx.pref != "both" && consoleHint != toUpperAscii(ctx.pref)) {
+    logDebug(source.name + " skipped - catalog is " + consoleHint + ", hunt is " + ctx.pref);
+    return;
+  }
   for (const std::string& templateUrl : source.urls) {
     if (stopRequested()) return;
     std::string url = renderTemplate(templateUrl, ctx.game, consoleHint, 1);
-    auto entries = catalogEntries(ctx, url);
+    auto entries = catalogEntries(url);
     if (!entries) continue;
 
     size_t matched = 0;
@@ -725,6 +730,22 @@ std::string renderTemplate(const std::string& tpl, const std::string& query,
 }
 
 int64_t huntStartedAtMs() { return g_huntStartMs.load(); }
+
+void warmCatalogs(const Config& config) {
+  std::set<std::string> urls;
+  for (const Source& source : config.sources) {
+    if (source.type != "catalog") continue;
+    for (const std::string& templateUrl : source.urls) urls.insert(templateUrl);
+  }
+  // one thread per catalog; six of them at once is the whole list
+  std::vector<std::thread> threads;
+  for (const std::string& url : urls) {
+    threads.emplace_back([url] {
+      if (!abortRequested()) catalogEntries(url);
+    });
+  }
+  for (std::thread& thread : threads) thread.join();
+}
 
 void huntMany(const std::vector<std::string>& games, const std::string& consolePref,
               const Config& config,

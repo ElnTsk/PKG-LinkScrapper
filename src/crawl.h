@@ -43,6 +43,8 @@ struct HuntResult {
 constexpr int kHuntBudgetMs = 30000;
 // when the whole run started - the gui counts the same clock down on screen
 int64_t huntStartedAtMs();
+// fetch and parse every catalog source once, before any hunt clock starts
+void warmCatalogs(const Config& config);
 
 // Links the caller wants to stop seeing: stubs, 404s, hosts that never answer.
 // The list must outlive the hunt.
