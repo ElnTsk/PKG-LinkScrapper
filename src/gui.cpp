@@ -668,7 +668,7 @@ std::string columnText(const Hit& hit, int column) {
     case 5: return pingText(hit);
     case 6: return hit.host;
     case 7: return hit.title;
-    case 8: return hit.source;
+    case 8: return hit.site.empty() ? hit.source : hit.site;
     default: return hit.url;
   }
 }
@@ -898,6 +898,7 @@ std::string detailsText(const Hit& hit) {
   out += "\r\n";
 
   out += "source " + hit.source + "  host " + hit.host;
+  if (!hit.site.empty() && hit.site != hit.host) out += "  from " + hit.site;
   if (hit.pingMs >= 0) {
     out += "  ping ";
     out += hit.pingMs > 0 ? std::to_string(hit.pingMs) + "ms" : std::string("no route");

@@ -100,6 +100,7 @@ std::string renderHits(const std::vector<Hit>& hits, const std::string& format) 
       out += "    \"title\": " + jsonEscape(hit.title) + ",\n";
       out += "    \"host\": " + jsonEscape(hit.host) + ",\n";
       out += "    \"source\": " + jsonEscape(hit.source) + ",\n";
+      out += "    \"site\": " + jsonEscape(hit.site) + ",\n";
       out += "    \"url\": " + jsonEscape(hit.url);
       if (hit.partCount >= 2) {
         out += ",\n    \"part_urls\": [";

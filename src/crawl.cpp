@@ -130,6 +130,7 @@ void recordHit(Ctx& ctx,
   hit.kind = kind;
   hit.title = cleanTitle;
   hit.source = source.name;
+  hit.site = pageUrl.empty() ? std::string() : registrable(bareHost(pageUrl));
   hit.url = url;
   hit.host = registrable(bareHost(url));
   hit.matchScore = matchScore;

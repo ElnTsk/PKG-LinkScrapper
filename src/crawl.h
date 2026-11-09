@@ -13,6 +13,8 @@ struct Hit {
   std::string kind;
   std::string title;
   std::string source;
+  // the website the link was lifted from, when one is known
+  std::string site;
   std::string url;
   std::string host;
   std::string state = "unverified";
