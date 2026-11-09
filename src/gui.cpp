@@ -28,6 +28,7 @@
 #include "../src/match.h"
 #include "../src/output.h"
 #include "../src/parts.h"
+#include "../src/hosts.h"
 #include "../src/report.h"
 #include "../src/resolve.h"
 #include "../src/trust.h"
@@ -1723,15 +1724,19 @@ std::string pickFolder(HWND owner) {
   return pickFolderLegacy(owner, initial);
 }
 
+// a host that answers every share with a page or a challenge only hands the
+// file to a browser click; queueing it can only end in a failed row
+bool pullable(const std::string& url, const std::string& state) {
+  if (shareServesPage(registrable(bareHost(url))) && !resolvableHost(url)) return false;
+  return grabbableState(state) || (state == "gated" && resolvableHost(url));
+}
+
 std::vector<std::string> downloadUrlsFor(const Hit& hit) {
   std::vector<std::string> urls;
-  // a gated row is still worth queueing when this tool knows how to walk the
-  // host's extra step - the walk happens on the click, not during the hunt
   auto stateOf = [](const std::string& url) {
     auto found = g.indexByUrl.find(url);
     if (found == g.indexByUrl.end()) return true;
-    const std::string& state = g.hits[found->second].state;
-    return grabbableState(state) || (state == "gated" && resolvableHost(url));
+    return pullable(url, g.hits[found->second].state);
   };
   if (!hit.isChild && hit.partCount >= 2) {
     for (const std::string& url : hit.partUrls) {
@@ -1739,10 +1744,22 @@ std::vector<std::string> downloadUrlsFor(const Hit& hit) {
     }
     return urls;
   }
-  if (grabbableState(hit.state) || (hit.state == "gated" && resolvableHost(hit.url))) {
-    urls.push_back(hit.url);
-  }
+  if (pullable(hit.url, hit.state)) urls.push_back(hit.url);
   return urls;
+}
+
+// the refusal names the host when the host is the reason
+void startDownloads(const std::vector<std::string>& urls);
+void downloadRow(const Hit& hit) {
+  std::vector<std::string> urls = downloadUrlsFor(hit);
+  if (urls.empty()) {
+    std::string host = registrable(bareHost(hit.url));
+    if (shareServesPage(host) && !resolvableHost(hit.url)) {
+      setStatusText(0, host + " only hands the file to a browser click - open the row and use its button");
+      return;
+    }
+  }
+  startDownloads(urls);
 }
 
 void startDownloads(const std::vector<std::string>& urls) {
@@ -2914,7 +2931,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             setStatusText(0, "pick a row first - Download pulls that link, or every part of that set");
             break;
           }
-          startDownloads(downloadUrlsFor(*hit));
+          downloadRow(*hit);
           return 0;
         }
         case IDC_EXPORT:

@@ -106,10 +106,10 @@ the `.part` file instead of starting over.
 
 What it will not do:
 
-- **captcha hosts** — vikingfile, gofile, rootz, 1fichier's queue, datavaults,
-  terabox and friends ask a browser for a click or a challenge. Those rows say
-  `gated`, and Download says so instead of pretending. Open them in your
-  browser.
+- **captcha hosts** — vikingfile, gofile, rootz, akirabox, datavaults, terabox
+  and friends ask a browser for a click or a challenge. Those rows say `gated`,
+  and Download refuses before queueing anything: the status bar names the host
+  and tells you to open the row. No failed download rows for those.
 - **filecrypt containers** — the page holds the real links behind a captcha;
   open it, solve it, copy what it shows.
 - **gofile** — javascript builds the file list after the page loads, so nothing

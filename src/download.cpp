@@ -1,5 +1,7 @@
 #include "download.h"
 
+#include "hosts.h"
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -318,8 +320,10 @@ void transfer(Job* job) {
     const bool html = toLowerAscii(rawHeaders).find("content-type: text/html") != std::string::npos;
     const bool small = expected == 0 || expected - resume < (1LL << 20);
     if (html && small) {
+      std::string host = registrable(bareHost(job->item.url));
       finish(job, "failed",
-             "the host served its web page, not the file - open the link and use its download button");
+             (host.empty() ? std::string("the host") : host) +
+                 " served its web page, not the file - that host wants a browser click");
       return;
     }
 
