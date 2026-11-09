@@ -607,8 +607,10 @@ void applyTheme() {
   for (HWND control : {g.games, g.limit, g.threshold, g.filter, g.details, g.list}) {
     installFlatFrame(control);
     if (control != g.list) {
+      // the number boxes centre their text: any margin shows as an offset
+      bool numberBox = control == g.limit || control == g.threshold;
       SendMessageW(control, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN,
-                   reinterpret_cast<LPARAM>(MAKELPARAM(5, 5)));
+                   reinterpret_cast<LPARAM>(MAKELPARAM(numberBox ? 0 : 5, numberBox ? 0 : 5)));
     }
   }
 
@@ -1154,12 +1156,12 @@ void layoutControls() {
   x += 96 + gap + gap;
   MoveWindow(g.limitLabel, x, controlRow + 4, 70, 16, TRUE);
   x += 70 + 4;
-  MoveWindow(g.limit, x, controlRow, 52, height, TRUE);
-  x += 52 + gap + gap;
+  MoveWindow(g.limit, x, controlRow, 42, height, TRUE);
+  x += 42 + gap + gap;
   MoveWindow(g.thresholdLabel, x, controlRow + 4, 46, 16, TRUE);
   x += 46 + 4;
-  MoveWindow(g.threshold, x, controlRow, 56, height, TRUE);
-  x += 56 + gap;
+  MoveWindow(g.threshold, x, controlRow, 52, height, TRUE);
+  x += 52 + gap;
   MoveWindow(g.timerLabel, x, controlRow + 4, 60, 16, TRUE);
   x += 60 + gap;
   MoveWindow(g.verify, x, controlRow + 2, 104, height - 2, TRUE);
