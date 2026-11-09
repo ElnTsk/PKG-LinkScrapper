@@ -599,6 +599,12 @@ int main(int argc, char** argv) {
     report.host = registrable(bareHost(opts.reportUrl));
     report.source = "cli report";
     report.state = "dead";
+    if (deadReportListed(opts.reportUrl)) {
+      std::printf("report #%s already in the dead links database\n",
+                  deadReportCode(opts.reportUrl).c_str());
+      httpShutdown();
+      return 0;
+    }
     std::string reportError;
     bool sent = sendDeadReport(report, reportError);
     std::printf("report #%s %s\n", deadReportCode(opts.reportUrl).c_str(),

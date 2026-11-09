@@ -3153,11 +3153,19 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
               } else {
                 setStatusText(0, "reporting dead link #" + deadReportCode(hit->url) + " ...");
                 std::thread([report] {
-                  std::string error;
-                  bool sent = sendDeadReport(report, error);
-                  std::string text = sent ? "dead link reported and hidden - the owner was tagged"
-                                          : "report failed: " + error + " - the link is hidden locally";
-                  PostMessageW(g.window, WM_APP_REPORT_DONE, sent ? 1 : 0,
+                  std::string text;
+                  bool good = true;
+                  if (deadReportListed(report.url)) {
+                    markDeadReportSent(report.url);
+                    text = "already in the dead links database - hidden here too";
+                  } else {
+                    std::string error;
+                    bool sent = sendDeadReport(report, error);
+                    good = sent;
+                    text = sent ? "dead link reported and hidden - the owner was tagged"
+                                : "report failed: " + error + " - the link is hidden locally";
+                  }
+                  PostMessageW(g.window, WM_APP_REPORT_DONE, good ? 1 : 0,
                                reinterpret_cast<LPARAM>(new std::string(text)));
                 }).detach();
               }

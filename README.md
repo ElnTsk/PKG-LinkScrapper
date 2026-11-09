@@ -67,7 +67,8 @@ maintainer. Each report gets a ✅ / ❌ after a look: approved links are writte
 [dead links database](https://github.com/ElnTsk/PKG-LinkScrapper/blob/main/Dead%20Links%20Database.txt),
 and the tool reads that file on the next hunt and stops offering them; rejected
 reports are dropped. One report per link — the menu says "already reported"
-after the first.
+after the first, and before sending, the tool checks the public database itself:
+the same url from another user is skipped instead of filed twice.
 
 ## Reading the list
 

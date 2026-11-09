@@ -2,6 +2,10 @@
 
 #include <cstdio>
 #include <fstream>
+#include <mutex>
+#include <set>
+#include <mutex>
+#include <set>
 #include <sstream>
 #include <vector>
 
@@ -11,6 +15,7 @@
 #include <windows.h>
 
 #include "deadstore.h"
+#include "hosts.h"
 #include "http.h"
 #include "json.h"
 #include "util.h"
@@ -27,6 +32,33 @@ const char* kReportList =
     "https://raw.githubusercontent.com/ElnTsk/PKG-LinkScrapper/main/Dead%20Links%20Database.txt";
 
 std::string reportedPath() { return stateDirectory() + "\\reported.tsv"; }
+
+// the public list, parsed once per process (re-read after five minutes): the
+// report button checks it so the same dead link is never filed twice
+std::mutex g_listMutex;
+std::set<std::string> g_listedUrls;
+int64_t g_listTakenMs = 0;
+
+const std::set<std::string>& deadList(bool force) {
+  std::lock_guard<std::mutex> lock(g_listMutex);
+  if (!force && !g_listedUrls.empty() && wallMs() - g_listTakenMs < 5LL * 60 * 1000) {
+    return g_listedUrls;
+  }
+  HttpResponse response = httpRequest(kReportList, "GET", std::vector<std::string>{}, true, false,
+                                      8000);
+  if (response.status == 200 && !response.body.empty()) {
+    g_listedUrls.clear();
+    for (const std::string& rawLine : splitLines(response.body)) {
+      std::string line = trim(rawLine);
+      if (line.empty() || line[0] == '#') continue;
+      size_t tab = line.find_last_of('\t');
+      std::string url = trim(tab == std::string::npos ? line : line.substr(tab + 1));
+      if (url.find("http") == 0) g_listedUrls.insert(normalizeUrl(url));
+    }
+    g_listTakenMs = wallMs();
+  }
+  return g_listedUrls;
+}
 
 // the gui can reach this before any hunt ran; a request needs the session
 void ensureHttp() {
@@ -124,31 +156,23 @@ bool sendDeadReport(const DeadReport& report, std::string& error) {
   return true;
 }
 
+bool deadReportListed(const std::string& url) {
+  ensureHttp();
+  const std::set<std::string>& listed = deadList(false);
+  return listed.count(normalizeUrl(url)) > 0;
+}
+
 void applyDeadVerdicts() {
   ensureHttp();
-  HttpResponse response = httpRequest(kReportList, "GET", std::vector<std::string>{}, true, false,
-                                      3000);
-  if (response.status != 200 || response.body.empty()) return;
+  g_listTakenMs = 0;
+  const std::set<std::string>& listed = deadList(true);
+  if (listed.empty()) return;
 
   // every line in the list is a report the owner approved - confirmed dead,
   // so it is remembered dead here too
-  for (const std::string& raw : splitLines(response.body)) {
-    std::string line = trim(raw);
-    if (line.empty() || line[0] == '#') continue;
-    std::vector<std::string> cells;
-    size_t pos = 0;
-    while (pos <= line.size()) {
-      size_t tab = line.find('\t', pos);
-      if (tab == std::string::npos) tab = line.size();
-      cells.push_back(line.substr(pos, tab - pos));
-      pos = tab + 1;
-    }
-    if (cells.size() < 3) continue;
-    const std::string& url = trim(cells.back());
-    if (url.find("http") != 0) continue;
-    std::string host = cells.size() > 3 ? trim(cells[2]) : "";
-    std::string game = cells.size() > 5 ? trim(cells[4]) : "";
+  for (const std::string& url : listed) {
+    std::string host = registrable(bareHost(url));
     std::string error;
-    appendDeadStore(url, "reported", host, game, error);
+    appendDeadStore(url, "reported", host, "", error);
   }
 }

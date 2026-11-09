@@ -20,6 +20,8 @@ std::string deadReportCode(const std::string& url);
 bool sendDeadReport(const DeadReport& report, std::string& error);
 
 bool deadReportAlreadySent(const std::string& url);
+// true when the public dead links database already carries this url
+bool deadReportListed(const std::string& url);
 void markDeadReportSent(const std::string& url);
 
 // fetch the public deadlinks.txt - every line there is a report the owner
