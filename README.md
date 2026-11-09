@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/icon.png" width="150" alt="PKG-LinkScrapper icon">
+</p>
+
 # PKG-LinkScrapper
 
 Finds PS4 and PS5 game download links and checks whether they actually work.
@@ -6,10 +10,14 @@ Type a game name. It searches the known release sites and link catalogs, pulls
 the file links those pages carry, probes every one of them, and puts the result
 in one list: alive, dead, size, host, where it came from.
 
-![the window](docs/window.png)
+<p align="center">
+  <img src="docs/window.png" width="720" alt="PKG-LinkScrapper hunting Astro Bot">
+</p>
 
 **Download:** [PKG-LinkScrapper.exe](https://github.com/ElnTsk/PKG-LinkScrapper/releases/latest)
 — one file, no installer, no runtime. Double-click it.
+
+Made by [**&lt;/ElonTusk&gt;**](https://github.com/ElnTsk).
 
 ---
 
@@ -306,3 +314,7 @@ hosts, containers, shorteners, direct `.pkg` files — the page is read when the
 host is known to serve HTML, and the link is probed with a ranged request to get
 status and size. Part numbers in file names are grouped into sets. Everything
 alive is remembered, everything dead is skipped next time.
+
+---
+
+made by </ElonTusk> · [github.com/ElnTsk](https://github.com/ElnTsk)

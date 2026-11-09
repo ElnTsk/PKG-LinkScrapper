@@ -1155,9 +1155,15 @@ void layoutControls() {
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
   MoveWindow(g.status, 0, client.bottom - statusHeight, client.right, statusHeight, TRUE);
 
-  int right = std::max<int>(320, static_cast<int>(client.right) - 360);
-  int parts[3] = {right, std::min<int>(static_cast<int>(client.right) - 120, right + 260), -1};
-  SendMessageW(g.status, SB_SETPARTS, 3, reinterpret_cast<LPARAM>(parts));
+  int rightEdge = static_cast<int>(client.right);
+  const int creditWidth = 180;
+  int textEnd = std::max<int>(300, rightEdge - creditWidth - 430);
+  int countsEnd = std::min<int>(rightEdge - creditWidth - 40, textEnd + 240);
+  int sourcesEnd = std::max<int>(countsEnd + 80, rightEdge - creditWidth);
+  int parts[4] = {textEnd, countsEnd, sourcesEnd, -1};
+  SendMessageW(g.status, SB_SETPARTS, 4, reinterpret_cast<LPARAM>(parts));
+  // the bench signature, always on the rail
+  setStatusText(3, "made by </ElonTusk>");
 }
 
 HWND createControl(HWND parent, const char* className, const char* text, DWORD style, DWORD exStyle,
@@ -3262,6 +3268,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
   WNDCLASSA wc{};
   wc.lpfnWndProc = windowProc;
   wc.hInstance = instance;
+  wc.hIcon = LoadIconA(instance, MAKEINTRESOURCEA(1));
   wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
   loadThemePreference();
   applyProcessTheme(g.darkMode);
@@ -3272,6 +3279,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
   WNDCLASSA dwc{};
   dwc.lpfnWndProc = downloadsProc;
   dwc.hInstance = instance;
+  dwc.hIcon = wc.hIcon;
   dwc.hCursor = LoadCursor(nullptr, IDC_ARROW);
   dwc.hbrBackground = CreateSolidBrush(palette().window);
   dwc.lpszClassName = "PKG-LinkScrapperDownloads";
@@ -3280,6 +3288,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
   WNDCLASSA swc{};
   swc.lpfnWndProc = sourcesProc;
   swc.hInstance = instance;
+  swc.hIcon = wc.hIcon;
   swc.hCursor = LoadCursor(nullptr, IDC_ARROW);
   swc.hbrBackground = CreateSolidBrush(palette().window);
   swc.lpszClassName = "PKG-LinkScrapperSources";

@@ -28,11 +28,12 @@
 
 namespace {
 
-const char* kVersion = "1.0.2";
+const char* kVersion = "1.0.3";
 
 std::string helpText() {
   std::string text;
   text += "PKG-LinkScrapper " + std::string(kVersion) + " - PS4/PS5 game link hunter (C++)\n";
+  text += "made by </ElonTusk>\n";
   text += "\n";
   text += "usage:\n";
   text += "  PKG-LinkScrapper.exe [games...] [options]\n";
@@ -435,7 +436,8 @@ void interactiveRun(Options& opts, Config& config) {
   std::vector<std::string> batch;
   bool gotInput = false;
 
-  std::printf("PKG-LinkScrapper %s - %d sources\n", kVersion, static_cast<int>(config.sources.size()));
+  std::printf("PKG-LinkScrapper %s - %d sources - made by </ElonTusk>\n", kVersion,
+              static_cast<int>(config.sources.size()));
   std::printf("type game names, one per line, then a blank line to hunt.\n");
   std::printf("console: ps4 ps5 both   format: table json csv tsv   sources: list|disable <name>   rec: recommended only   q: quit\n\n");
 
@@ -539,7 +541,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (opts.version) {
-    std::string text = std::string("PKG-LinkScrapper ") + kVersion + "\n";
+    std::string text = std::string("PKG-LinkScrapper ") + kVersion + " - made by </ElonTusk>\n";
     std::fwrite(text.data(), 1, text.size(), stdout);
     return 0;
   }
