@@ -1,3 +1,2 @@
 # PKG-LinkScrapper dead link reports - approved by </ElonTusk>
 # code	approved_at	host	source	game	url
-370b8f	2026-11-09T16:38:54.813Z	filekeeper.net	cli report		https://filekeeper.net/testdeadlink0003
