@@ -107,8 +107,8 @@ constexpr UINT_PTR DOWNLOAD_TIMER = 3;
 #define LVIS_FOCUS 0x0008
 #endif
 
-#ifndef LVM_SUBHITTEST
-#define LVM_SUBHITTEST (WM_USER + 63)
+#ifndef LVM_SUBITEMHITTEST
+#define LVM_SUBITEMHITTEST (LVM_FIRST + 57)
 #endif
 
 // uxtheme exports these by ordinal; this is what Explorer uses to render its
@@ -672,7 +672,8 @@ std::string columnText(const Hit& hit, int column) {
     case 4: {
       std::string label = partsLabel(hit);
       if (!label.empty()) {
-        label += g.expanded.count(hit.url) ? "  \xE2\x96\xBE" : "  \xE2\x96\xB8";
+        // down arrow = click to drop the part list open, up arrow when open
+        label += g.expanded.count(hit.url) ? "  \xE2\x96\xB4" : "  \xE2\x96\xBE";
       }
       return label;
     }
@@ -3075,7 +3076,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             int item;
             int subItem;
           } probe{{where.x, where.y}, 0, -1, -1};
-          SendMessageW(g.list, LVM_SUBHITTEST, 0, reinterpret_cast<LPARAM>(&probe));
+          SendMessageW(g.list, LVM_SUBITEMHITTEST, 0, reinterpret_cast<LPARAM>(&probe));
           if (probe.item >= 0 && probe.subItem == kPartsColumn &&
               static_cast<size_t>(probe.item) < g.view.size()) {
             toggleParts(probe.item);
