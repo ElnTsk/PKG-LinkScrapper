@@ -777,6 +777,22 @@ void huntMany(const std::vector<std::string>& games, const std::string& consoleP
         result.hits = trimByGroup(seated, limit);
       }
 
+      // a release page is the fallback, not an answer: once any real link for
+      // the game landed, the shop page row only gets clicked by mistake
+      bool haveFileLink = false;
+      for (const Hit& hit : result.hits) {
+        if (hit.kind != "page") {
+          haveFileLink = true;
+          break;
+        }
+      }
+      if (haveFileLink) {
+        result.hits.erase(
+            std::remove_if(result.hits.begin(), result.hits.end(),
+                           [](const Hit& hit) { return hit.kind == "page"; }),
+            result.hits.end());
+      }
+
       if (config.settings.verify && !result.hits.empty() && !stopRequested()) {
         verifyAll(result.hits, pool, g_huntDeadlineMs.load());
         if (onHit) {
