@@ -695,7 +695,11 @@ void rebuildRows() {
   std::vector<Hit> usable;
   usable.reserve(g.hits.size());
   for (const Hit& hit : g.hits) {
-    if (!deadStoreContains(g.dead, hit.url)) usable.push_back(hit);
+    if (deadStoreContains(g.dead, hit.url)) continue;
+    // no answer twice is enough - the row leaves the screen instead of
+    // cluttering it; a later hunt that gets an answer brings it back
+    if (hit.state == "unreachable") continue;
+    usable.push_back(hit);
   }
 
   // a 21-part set is one download, so it gets one row
@@ -3253,6 +3257,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           }
           delete snapshot;
           setBusy(false);
+          for (const Hit& hit : g.hits) {
+            if (hit.state == "unreachable") rememberDead(hit, true);
+          }
+          rebuildRows();
           setStatusText(0, "re-checked " + std::to_string(updated) + " links");
           std::string storeError;
           rememberGood(g.hits, storeError);
