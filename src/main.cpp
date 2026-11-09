@@ -30,7 +30,7 @@
 
 namespace {
 
-const char* kVersion = "1.0.4";
+const char* kVersion = "1.0-beta";
 
 std::string helpText() {
   std::string text;
