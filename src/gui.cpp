@@ -1735,28 +1735,15 @@ std::vector<std::string> downloadUrlsFor(const Hit& hit) {
 }
 
 // the refusal names the host when the host is the reason
-void startDownloads(const std::vector<std::string>& urls);
+bool startDownloads(const std::vector<std::string>& urls);
 void downloadRow(const Hit& hit) {
-  std::vector<std::string> urls = downloadUrlsFor(hit);
-  if (urls.empty()) {
-    std::string host = registrable(bareHost(hit.url));
-    if (shareServesPage(host) && !resolvableHost(hit.url)) {
-      // the working path for these is the browser the host trusts
-      ShellExecuteA(g.window, "open", hit.url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-      setStatusText(0, host + " needs a browser click - opened it, download from there");
-      return;
-    }
-  }
-  startDownloads(urls);
+  if (startDownloads(downloadUrlsFor(hit))) return;
+  // no usable file link: the browser is the working path, and it says nothing
+  ShellExecuteA(g.window, "open", hit.url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
-void startDownloads(const std::vector<std::string>& urls) {
-  if (urls.empty()) {
-    setStatusText(0,
-                  "nothing to pull on that row - it is a page, a shell, a captcha gate, or every "
-                  "part is dead");
-    return;
-  }
+bool startDownloads(const std::vector<std::string>& urls) {
+  if (urls.empty()) return false;
   std::string folder = downloadTarget();
   if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
     CreateDirectoryA(folder.c_str(), nullptr);
@@ -1768,37 +1755,28 @@ void startDownloads(const std::vector<std::string>& urls) {
   // spent during a hunt
   std::vector<std::string> queue;
   std::vector<std::string> names;
-  std::vector<std::string> refused;
-  bool anyResolvable = false;
   for (const std::string& url : urls) {
     if (!resolvableHost(url)) {
       queue.push_back(url);
       names.emplace_back();
       continue;
     }
-    anyResolvable = true;
     DirectLink direct = resolveDirect(url);
     if (direct.ok) {
       queue.push_back(direct.url);
       names.push_back(direct.name);
-    } else {
-      refused.push_back(direct.note.empty() ? "no link" : direct.note);
     }
   }
-  if (queue.empty()) {
-    setStatusText(0, refused.empty() ? "the host gave no file link" : refused[0]);
-    return;
-  }
+  if (queue.empty()) return false;
 
   std::vector<std::string> ids = downloadsAdd(queue, folder, names);
   downloadsStart(3);
   dl.allPaused = false;
   showDownloadsWindow();
   refreshDownloads();
-  std::string note = "downloading " + std::to_string(ids.size()) + " file(s) to " + folder;
-  if (anyResolvable) note += " - through the host's own download page";
-  if (!refused.empty()) note += " - " + std::to_string(refused.size()) + " refused: " + refused[0];
-  setStatusText(0, note);
+  setStatusText(0, "direct download - " + std::to_string(ids.size()) + " file(s) saving to " +
+                       folder);
+  return true;
 }
 
 void layoutDownloads() {
@@ -3192,8 +3170,9 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             ShowWindow(g.filter, SW_HIDE);
           }
           char speed[64];
-          std::snprintf(speed, sizeof(speed), "%.1f MB/s  -  %d of %d files",
-                        downloadsAggregateMBs(), static_cast<int>(done), static_cast<int>(items.size()));
+          std::snprintf(speed, sizeof(speed), "%d / %d parts  -  %.1f MB/s",
+                        static_cast<int>(done), static_cast<int>(items.size()),
+                        downloadsAggregateMBs());
           g.dlStatusText = speed;
           InvalidateRect(g.dlBar, nullptr, TRUE);
           g.dlWasBusy = true;
