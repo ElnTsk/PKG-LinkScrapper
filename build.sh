@@ -8,7 +8,7 @@ TARGET="${TARGET:-x86_64-windows-gnu}"
 COMMON=(-std=c++20 -O2 -Wall -Wextra -Wno-unused-parameter)
 CORE=(src/util.cpp src/json.cpp src/hosts.cpp src/html.cpp src/match.cpp src/config.cpp src/http.cpp
       src/crawl.cpp src/verify.cpp src/parts.cpp src/trust.cpp src/ping.cpp src/output.cpp
-      src/deadstore.cpp src/download.cpp src/resolve.cpp src/catalog.cpp)
+      src/deadstore.cpp src/download.cpp src/resolve.cpp src/catalog.cpp src/report.cpp)
 GUI_LIBS=(-lwinhttp -lcomctl32 -lcomdlg32 -lshell32 -lole32 -luuid -lgdi32 -luser32 -ldwmapi
           -luxtheme -ladvapi32 -lws2_32)
 

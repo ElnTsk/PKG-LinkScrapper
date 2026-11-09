@@ -28,6 +28,7 @@
 #include "../src/match.h"
 #include "../src/output.h"
 #include "../src/parts.h"
+#include "../src/report.h"
 #include "../src/resolve.h"
 #include "../src/trust.h"
 #include "../src/util.h"
@@ -81,6 +82,7 @@ constexpr UINT WM_APP_PROGRESS = WM_APP + 1;
 constexpr UINT WM_APP_RESULTS = WM_APP + 2;
 constexpr UINT WM_APP_DONE = WM_APP + 3;
 constexpr UINT WM_APP_HIT = WM_APP + 4;
+constexpr UINT WM_APP_REPORT_DONE = WM_APP + 5;
 constexpr UINT_PTR PAINT_TIMER = 1;
 constexpr UINT_PTR DETAILS_TIMER = 2;
 constexpr UINT_PTR DOWNLOAD_TIMER = 3;
@@ -2789,6 +2791,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       SetTimer(window, DETAILS_TIMER, 400, nullptr);
 
       SetFocus(g.games);
+      applyDeadVerdicts();
       loadDeadStore(g.dead);
       setDeadStore(&g.dead);
       loadGoodStore(g.good);
@@ -3045,6 +3048,9 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             AppendMenuA(menu, MF_STRING, 11, "Downloads window");
             AppendMenuA(menu, MF_SEPARATOR, 0, nullptr);
             AppendMenuA(menu, MF_STRING, 4, grouped ? "Never show this set again" : "Never show this link again");
+            const bool alreadyReported = deadReportAlreadySent(hit->url);
+            std::string reportLabel = alreadyReported ? "Dead link already reported" : "Report dead link";
+            AppendMenuA(menu, MF_STRING, 12, reportLabel.c_str());
             POINT point;
             GetCursorPos(&point);
             int choice = static_cast<int>(
@@ -3088,6 +3094,28 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
               setStatusText(2, sourceSummary() + "  |  " + std::to_string(g.dead.size()) +
                                    " remembered dead  |  " + std::to_string(g.good.size()) +
                                    " remembered good");
+            } else if (choice == 12) {
+              DeadReport report;
+              report.game = hit->game;
+              report.url = hit->url;
+              report.host = hit->host;
+              report.source = hit->source;
+              report.state = hit->state;
+              report.size = hit->size;
+              report.title = hit->title;
+              if (alreadyReported) {
+                setStatusText(0, "this link was reported before - the log keeps one line per link");
+              } else {
+                setStatusText(0, "reporting dead link #" + deadReportCode(hit->url) + " ...");
+                std::thread([report] {
+                  std::string error;
+                  bool sent = sendDeadReport(report, error);
+                  std::string text = sent ? "dead link reported - the owner was tagged"
+                                          : "report failed: " + error;
+                  PostMessageW(g.window, WM_APP_REPORT_DONE, sent ? 1 : 0,
+                               reinterpret_cast<LPARAM>(new std::string(text)));
+                }).detach();
+              }
             }
           }
           return 0;
@@ -3171,6 +3199,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         g.dirty = false;
         rebuildRows();
         populateList();
+      }
+      return 0;
+    }
+
+    case WM_APP_REPORT_DONE: {
+      auto* text = reinterpret_cast<std::string*>(lParam);
+      if (text) {
+        setStatusText(0, *text);
+        delete text;
       }
       return 0;
     }

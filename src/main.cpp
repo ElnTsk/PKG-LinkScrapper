@@ -18,9 +18,11 @@
 #include "config.h"
 #include "crawl.h"
 #include "deadstore.h"
+#include "hosts.h"
 #include "http.h"
 #include "output.h"
 #include "parts.h"
+#include "report.h"
 #include "resolve.h"
 #include "trust.h"
 #include "util.h"
@@ -28,7 +30,7 @@
 
 namespace {
 
-const char* kVersion = "1.0.3";
+const char* kVersion = "1.0.4";
 
 std::string helpText() {
   std::string text;
@@ -99,6 +101,7 @@ struct Options {
   bool listSources = false;
   bool resolve = false;
   std::string resolveUrl;
+  std::string reportUrl;
   bool clearDead = false;
   bool forgetGood = false;
   bool trustedOnly = false;
@@ -139,6 +142,9 @@ bool parseArgs(int argc, char** argv, Options& opts, std::string& error) {
     } else if (arg == "--resolve") {
       opts.resolve = true;
       opts.resolveUrl = value(arg);
+      if (!error.empty()) return false;
+    } else if (arg == "--report") {
+      opts.reportUrl = value(arg);
       if (!error.empty()) return false;
     } else if (arg == "--clear-dead") {
       opts.clearDead = true;
@@ -318,6 +324,7 @@ int runHunt(const Options& opts, Config& config, const std::vector<std::string>&
   if (games.empty()) return 0;
 
   std::vector<std::string> dead;
+  applyDeadVerdicts();
   loadDeadStore(dead);
   setDeadStore(&dead);
 
@@ -562,8 +569,7 @@ int main(int argc, char** argv) {
 
   if (opts.resolve) {
     httpInit(config.settings.userAgent, 1, config.settings.timeoutMs, 1, 0);
-    if (!resolvableHost(opts.resolveUrl)) {
-      std::printf("%s\n  no walk implemented for this host\n", opts.resolveUrl.c_str());
+    if (!resolvableHost(opts.resolveUrl)) {      std::printf("%s\n  no walk implemented for this host\n", opts.resolveUrl.c_str());
       httpShutdown();
       return 0;
     }
@@ -581,6 +587,21 @@ int main(int argc, char** argv) {
     }
     httpShutdown();
     return link.ok ? 0 : 1;
+  }
+
+  if (!opts.reportUrl.empty()) {
+    httpInit(config.settings.userAgent, 1, config.settings.timeoutMs, 1, 0);
+    DeadReport report;
+    report.url = opts.reportUrl;
+    report.host = registrable(bareHost(opts.reportUrl));
+    report.source = "cli report";
+    report.state = "dead";
+    std::string reportError;
+    bool sent = sendDeadReport(report, reportError);
+    std::printf("report #%s %s\n", deadReportCode(opts.reportUrl).c_str(),
+                sent ? "sent - the owner was tagged" : ("failed: " + reportError).c_str());
+    httpShutdown();
+    return sent ? 0 : 1;
   }
 
   std::vector<std::string> games;

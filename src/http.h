@@ -17,6 +17,8 @@ struct HttpResponse {
 };
 
 void httpInit(const std::string& userAgent, int concurrency, int timeoutMs, int retries, int minHostDelayMs);
+// true once httpInit has run - callers outside the crawl check before a request
+bool httpReady();
 void httpShutdown();
 void httpCancelAll();
 
@@ -40,3 +42,5 @@ HttpResponse httpGetRangeNoFollow(const std::string& url);
 // the answer is a one-time link
 HttpResponse httpPostForm(const std::string& url, const std::string& form,
                           const std::string& referer = std::string());
+// a json body, for webhook endpoints
+HttpResponse httpPostJson(const std::string& url, const std::string& json);

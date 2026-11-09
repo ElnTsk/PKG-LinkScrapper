@@ -54,6 +54,16 @@ Click a column header to sort, again to reverse. Double-click a row to open the
 link. Right-click for Open / Copy URL / Copy row, plus Open all parts / Copy all
 part URLs on a set.
 
+### Reporting a dead link
+
+Right-click any row → **Report dead link**. The tool sends one report to the
+project's log (Discord) with the game, host, source and url, and tags the
+maintainer. Each report gets a ✅ / ❌ after a look: approved links are written to
+[deadlinks.txt](https://github.com/ElnTsk/PKG-LinkScrapper/blob/main/deadlinks.txt),
+and the tool reads that file on the next hunt and stops offering them; rejected
+reports are dropped. One report per link — the menu says "already reported"
+after the first.
+
 ## Reading the list
 
 | state | meaning |

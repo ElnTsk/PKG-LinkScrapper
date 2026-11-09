@@ -296,6 +296,8 @@ void httpInit(const std::string& userAgent, int concurrency, int timeoutMs, int 
   }
 }
 
+bool httpReady() { return g_session != nullptr && g_semaphore != nullptr; }
+
 void httpShutdown() {
   g_semaphore.reset();
   if (g_session) {
@@ -330,6 +332,13 @@ HttpResponse httpRequest(const std::string& url,
                          int timeoutOverrideMs,
                          const std::string& body,
                          size_t maxBodyBytes) {
+  if (!httpReady()) {
+    HttpResponse response;
+    response.error = "http not initialised";
+    response.finalUrl = url;
+    return response;
+  }
+
   // a request that starts after Stop must not sit out its timeout
   if (abortRequested()) {
     HttpResponse response;
@@ -417,4 +426,10 @@ HttpResponse httpPostForm(const std::string& url, const std::string& form, const
   }
   headers.push_back("Referer: " + (referer.empty() ? url : referer));
   return httpRequest(url, "POST", headers, true, false, 0, form);
+}
+
+HttpResponse httpPostJson(const std::string& url, const std::string& json) {
+  std::vector<std::string> headers;
+  headers.push_back("Content-Type: application/json");
+  return httpRequest(url, "POST", headers, true, false, 0, json);
 }
