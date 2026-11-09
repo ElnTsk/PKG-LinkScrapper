@@ -1,0 +1,7 @@
+build/
+tools/
+results.tsv
+*.exe
+*.obj
+*.o
+*.res

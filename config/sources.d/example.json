@@ -1,0 +1,69 @@
+[
+  {
+    "_comment": "copy this file to %APPDATA%\\PKG-LinkScrapper\\sources.d\\ or <exe dir>\\config\\sources.d\\ and flip enabled to true",
+    "name": "example-rentry-list",
+    "type": "index",
+    "enabled": false,
+    "urls": [
+      "https://rentry.co/CHANGEME"
+    ],
+    "depth": 1,
+    "keep_pages": true
+  },
+  {
+    "_comment": "any site with a GET search: {q} = game name, {console} = PS4|PS5, {page} = page number",
+    "name": "example-forum-search",
+    "type": "index",
+    "enabled": false,
+    "search_url": "https://example.org/search?q={q}",
+    "paged_url": "https://example.org/page/{page}/?s={q}",
+    "pages": 2,
+    "depth": 1,
+    "resolve_redirects": true
+  },
+  {
+    "_comment": "point at any searx instance; swap instances or add your own",
+    "name": "example-searx",
+    "type": "search",
+    "enabled": false,
+    "engine": "searx",
+    "instances": [
+      "https://searx.be"
+    ],
+    "query": "{q} {console} pkg",
+    "pages": 1,
+    "depth": 1
+  },
+  {
+    "_comment": "a JSON catalog of game entries that already carry links (pegasus style: packages[].downloadLinks[{name,url}], or plain: [{name, download_links:{host:[urls]}}]). entries are matched on title and titleId; console labels the rows PS4 or PS5",
+    "name": "example-json-catalog",
+    "type": "catalog",
+    "console": "PS5",
+    "enabled": false,
+    "urls": [
+      "https://raw.githubusercontent.com/CHANGEME/catalog.json"
+    ],
+    "depth": 1,
+    "keep_pages": false
+  },
+  {
+    "_comment": "a telegram channel's public web preview is searchable with q=",
+    "name": "example-telegram-channel",
+    "type": "index",
+    "enabled": false,
+    "search_url": "https://t.me/s/CHANGEME?q={q}",
+    "pages": 1,
+    "depth": 2,
+    "keep_pages": false
+  },
+  {
+    "_comment": "trusted: true marks everything this source finds as recommended, and it leads the list. use it for a site you know serves bytes",
+    "name": "example-trusted-source",
+    "type": "index",
+    "enabled": false,
+    "trusted": true,
+    "search_url": "https://example.com/search?q={q}",
+    "pages": 1,
+    "depth": 1
+  }
+]
