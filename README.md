@@ -104,10 +104,10 @@ fold its members open underneath, `Left` to fold them back.
 
 ## Downloading
 
-Press **Download** and pick a folder first — the picker opens before anything
-starts. A green progress bar appears under the grid and fills as the file
-lands; the details line under it carries the current file and speed. There is
-no second window unless you ask for one (right-click → Downloads window). If a
+Press **Download** — no dialog, no questions: the file starts straight into
+`%USERPROFILE%DownloadsPKG-LinkScrapper` (the last folder used is remembered,
+and `PKG_LS_AUTO_FOLDER` overrides it). The downloads window opens with the
+queue, speed and Cancel, and a green bar fills under the grid while it runs. If a
 transfer fails, a box says so and reminds you that double-clicking the row opens
 the link in your browser. Interrupted downloads resume: pressing Download again
 continues from the `.part` file instead of starting over.

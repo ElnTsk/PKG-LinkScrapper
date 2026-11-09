@@ -1156,11 +1156,11 @@ void layoutControls() {
   x += 96 + gap + gap;
   MoveWindow(g.limitLabel, x, controlRow + 4, 70, 16, TRUE);
   x += 70 + 4;
-  MoveWindow(g.limit, x, controlRow, 42, height, TRUE);
+  MoveWindow(g.limit, x, controlRow + 4, 42, 20, TRUE);
   x += 42 + gap + gap;
   MoveWindow(g.thresholdLabel, x, controlRow + 4, 46, 16, TRUE);
   x += 46 + 4;
-  MoveWindow(g.threshold, x, controlRow, 52, height, TRUE);
+  MoveWindow(g.threshold, x, controlRow + 4, 52, 20, TRUE);
   x += 52 + gap;
   MoveWindow(g.timerLabel, x, controlRow + 4, 60, 16, TRUE);
   x += 60 + gap;
@@ -1648,16 +1648,6 @@ constexpr int kDlColumnCount = 6;
 const wchar_t* kDlColumnHeaders[] = {L"File", L"State", L"Done", L"Total", L"MB/s", L"Note"};
 const int kDlColumnWidths[] = {330, 88, 118, 96, 62, 250};
 
-// {DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7}
-const GUID kFileOpenDialogClsid = {0xdc1c5a9c, 0xe88a, 0x4dde,
-                                   {0xa5, 0xa1, 0x60, 0xf8, 0x2a, 0x20, 0xae, 0xf7}};
-// IID_IFileOpenDialog {d57c7288-d4ad-4768-be02-9d969532d960}
-const GUID kFileOpenDialogIid = {0xd57c7288, 0xd4ad, 0x4768,
-                                 {0xbe, 0x02, 0x9d, 0x96, 0x95, 0x32, 0xd9, 0x60}};
-// IID_IShellItem {43826d1e-e718-42ee-bc55-a1e261c37bfe}
-const GUID kShellItemIid = {0x43826d1e, 0xe718, 0x42ee,
-                            {0xbc, 0x55, 0xa1, 0xe2, 0x61, 0xc3, 0x7b, 0xfe}};
-
 std::string mbpsText(double value) {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.1f", value);
@@ -1704,94 +1694,11 @@ COLORREF dlColor(const DownloadItem& item) {
   return p.muted;
 }
 
-std::string hexResult(HRESULT hr) {
-  char buffer[24];
-  std::snprintf(buffer, sizeof(buffer), "0x%08lX", static_cast<unsigned long>(hr));
-  return buffer;
-}
-
-std::string gPickerNote;
-std::string gComNote;
-
-bool pickFolderModern(HWND owner, const std::string& initial, std::string& out) {
-  out.clear();
-  void* raw = nullptr;
-  HRESULT created = CoCreateInstance(kFileOpenDialogClsid, nullptr, CLSCTX_INPROC_SERVER,
-                                    kFileOpenDialogIid, &raw);
-  if (FAILED(created) || !raw) {
-    gPickerNote = "CoCreateInstance " + hexResult(created);
-    return false;
-  }
-  IFileOpenDialog* dialog = static_cast<IFileOpenDialog*>(raw);
-  dialog->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
-  dialog->SetTitle(L"Save downloads to");
-
-  if (!initial.empty()) {
-    std::wstring path = widen(initial);
-    void* seedRaw = nullptr;
-    if (SUCCEEDED(SHCreateItemFromParsingName(path.c_str(), nullptr, kShellItemIid, &seedRaw)) && seedRaw) {
-      dialog->SetFolder(static_cast<IShellItem*>(seedRaw));
-      static_cast<IShellItem*>(seedRaw)->Release();
-    }
-  }
-
-  bool shipped = false;
-  if (SUCCEEDED(dialog->Show(owner))) {
-    IShellItem* result = nullptr;
-    if (SUCCEEDED(dialog->GetResult(&result)) && result) {
-      PWSTR display = nullptr;
-      if (SUCCEEDED(result->GetDisplayName(SIGDN_FILESYSPATH, &display)) && display) {
-        out = narrow(display);
-        shipped = true;
-        CoTaskMemFree(display);
-      }
-      result->Release();
-    }
-  } else {
-    shipped = true;  // the dialog ran and the user closed it
-  }
-  dialog->Release();
-  return shipped;
-}
-
-int CALLBACK browseCallback(HWND dialog, UINT message, LPARAM lParam, LPARAM param) {
-  if (message == BFFM_INITIALIZED && param) {
-    SendMessageA(dialog, BFFM_SETSELECTIONA, TRUE, param);
-  }
-  (void)lParam;
-  return 0;
-}
-
-std::string pickFolderLegacy(HWND owner, const std::string& initial) {
-  BROWSEINFOA info{};
-  info.hwndOwner = owner;
-  info.lpszTitle = "Save downloads to";
-  info.ulFlags = BIF_NEWDIALOGSTYLE | BIF_EDITBOX | BIF_RETURNONLYFSDIRS;
-  if (!initial.empty()) {
-    info.lpfn = browseCallback;
-    info.lParam = reinterpret_cast<LPARAM>(initial.c_str());
-  }
-  LPITEMIDLIST picked = SHBrowseForFolderA(&info);
-  if (!picked) return std::string();
-  char path[1024] = {0};
-  std::string out;
-  if (SHGetPathFromIDListA(picked, path)) out = path;
-  CoTaskMemFree(picked);
-  return out;
-}
-
-std::string pickFolder(HWND owner) {
-  // a folder named up front skips the dialog - for scripts and for testing
+// where a download lands: the remembered folder, else the user's Downloads
+std::string downloadTarget() {
   const char* preset = std::getenv("PKG_LS_AUTO_FOLDER");
-  if (preset && *preset && GetFileAttributesA(preset) != INVALID_FILE_ATTRIBUTES) {
-    return preset;
-  }
-  std::string initial = downloadsFolderDefault();
-  std::string picked;
-  if (pickFolderModern(owner, initial, picked)) return picked;
-  setStatusText(0, "shell picker unavailable (" + gPickerNote + ", com " + gComNote +
-                       ") - using the classic one");
-  return pickFolderLegacy(owner, initial);
+  if (preset && *preset && GetFileAttributesA(preset) != INVALID_FILE_ATTRIBUTES) return preset;
+  return downloadsFolderDefault();
 }
 
 // a host that answers every share with a page or a challenge only hands the
@@ -1839,11 +1746,7 @@ void startDownloads(const std::vector<std::string>& urls) {
                   "part is dead");
     return;
   }
-  std::string folder = pickFolder(g.window);
-  if (folder.empty()) {
-    setStatusText(0, "cancelled - no folder picked, nothing downloaded");
-    return;
-  }
+  std::string folder = downloadTarget();
   if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
     CreateDirectoryA(folder.c_str(), nullptr);
   }
@@ -1879,6 +1782,7 @@ void startDownloads(const std::vector<std::string>& urls) {
   std::vector<std::string> ids = downloadsAdd(queue, folder, names);
   downloadsStart(3);
   dl.allPaused = false;
+  showDownloadsWindow();
   refreshDownloads();
   std::string note = "downloading " + std::to_string(ids.size()) + " file(s) to " + folder;
   if (anyResolvable) note += " - through the host's own download page";
@@ -3460,7 +3364,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
   InitCommonControlsEx(&init);
   SetProcessDPIAware();
   // the folder picker is a shell object, so this thread needs a COM apartment
-  gComNote = hexResult(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE));
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
   WNDCLASSA wc{};
   wc.lpfnWndProc = windowProc;
