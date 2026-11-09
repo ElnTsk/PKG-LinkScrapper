@@ -1,6 +1,7 @@
 #include "crawl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <map>
 #include <memory>
@@ -20,6 +21,16 @@
 #include "verify.h"
 
 namespace {
+
+std::atomic<int64_t> g_huntStartMs{0};
+std::atomic<int64_t> g_huntDeadlineMs{0};
+
+bool huntExpired() {
+  const int64_t deadline = g_huntDeadlineMs.load();
+  return deadline > 0 && nowMs() >= deadline;
+}
+
+bool stopRequested() { return abortRequested() || huntExpired(); }
 
 const std::vector<std::string>* g_dead = nullptr;
 
@@ -59,7 +70,7 @@ struct Ctx {
 std::string followRedirects(const std::string& url, int maxHops = 5) {
   std::string current = url;
   for (int hop = 0; hop < maxHops; ++hop) {
-    if (abortRequested()) return current;
+    if (stopRequested()) return current;
     HttpResponse res = httpGetRangeNoFollow(current);
     if (res.status >= 300 && res.status < 400) {
       std::string location = res.header("location");
@@ -175,7 +186,7 @@ size_t harvestLinkPages(Ctx& ctx,
 
   size_t found = 0;
   for (const std::string& linkPage : linkPages) {
-    if (abortRequested()) break;
+    if (stopRequested()) break;
     {
       std::lock_guard<std::mutex> lock(ctx.mutex);
       if (ctx.fetched >= ctx.maxFetch) return found;
@@ -206,7 +217,7 @@ void ingestJob(Ctx& ctx,
                bool trusted,
                int depth,
                const std::string& consoleHint) {
-  if (abortRequested()) return;
+  if (stopRequested()) return;
 
   std::string current = url;
   std::string kind = classify(current);
@@ -285,7 +296,7 @@ void ingestJob(Ctx& ctx,
   };
 
   for (const PageLink& link : page.links) {
-    if (abortRequested()) break;
+    if (stopRequested()) break;
     std::string linkKind = classify(link.href);
 
     if (isFileBearing(linkKind)) {
@@ -328,7 +339,7 @@ void ingestJob(Ctx& ctx,
 
   if (depth > 1 && ctx.fetched < ctx.maxFetch) {
     for (const PageLink& link : page.links) {
-      if (abortRequested()) break;
+      if (stopRequested()) break;
       if (classify(link.href) != "page") continue;
       if (scoreTitle(ctx.game, link.text) < ctx.threshold) continue;
       submitIngest(ctx, source, link.href, link.text, title, false, depth - 1, hint);
@@ -347,7 +358,7 @@ std::vector<std::string> searchDuckDuckGo(const std::string& query, int pages) {
   std::vector<std::string> out;
 
   for (int page = 0; page < pages; ++page) {
-    if (abortRequested()) break;
+    if (stopRequested()) break;
     std::string url = "https://lite.duckduckgo.com/lite/?q=" + percentEncode(query) +
                       "&s=" + std::to_string(page * 10);
     HttpResponse res = httpGet(url);
@@ -366,7 +377,7 @@ std::vector<std::string> searchDuckDuckGo(const std::string& query, int pages) {
   }
 
   for (int page = 0; page < pages; ++page) {
-    if (abortRequested()) break;
+    if (stopRequested()) break;
     std::string url = "https://html.duckduckgo.com/html/?q=" + percentEncode(query) +
                       "&s=" + std::to_string(page * 30) + "&dc=" + std::to_string(page * 30 + 1);
     HttpResponse res = httpGet(url);
@@ -387,7 +398,7 @@ std::vector<std::string> searchBing(const std::string& query, int pages) {
   std::vector<std::string> out;
 
   for (int page = 1; page <= pages; ++page) {
-    if (abortRequested()) break;
+    if (stopRequested()) break;
     std::string url = "https://www.bing.com/search?q=" + percentEncode(query) + "&count=30&first=" +
                       std::to_string((page - 1) * 10 + 1);
     HttpResponse res = httpGet(url);
@@ -440,7 +451,7 @@ std::vector<std::string> searchSearx(const std::string& query, int pages, const 
   for (const std::string& instance : instances) {
     std::string host = bareHost(instance);
     for (int page = 1; page <= pages; ++page) {
-      if (abortRequested()) break;
+      if (stopRequested()) break;
       std::string url = instance + "/search?q=" + percentEncode(query) + "&pageno=" +
                         std::to_string(page) + "&language=en";
       HttpResponse res = httpGet(url);
@@ -473,7 +484,7 @@ void runSearch(Ctx& ctx, const Source& source) {
   int emptyInARow = 0;
   for (const std::string& consoleTag : consolesFor(ctx.pref)) {
     for (const std::string& templateText : source.query) {
-      if (abortRequested()) return;
+      if (stopRequested()) return;
       // an engine that is bot-blocked stays blocked; do not burn the whole run on it
       if (emptyInARow >= 2) {
         logDebug(source.name + " skipped - engine returned nothing twice");
@@ -527,7 +538,7 @@ void runCatalog(Ctx& ctx, const Source& source) {
   const std::string consoleHint =
       source.console.empty() ? std::string() : toUpperAscii(source.console);
   for (const std::string& templateUrl : source.urls) {
-    if (abortRequested()) return;
+    if (stopRequested()) return;
     std::string url = renderTemplate(templateUrl, ctx.game, consoleHint, 1);
     auto entries = catalogEntries(ctx, url);
     if (!entries) continue;
@@ -535,7 +546,7 @@ void runCatalog(Ctx& ctx, const Source& source) {
     size_t matched = 0;
     size_t emitted = 0;
     for (const CatalogEntry& entry : *entries) {
-      if (abortRequested()) return;
+      if (stopRequested()) return;
       double score = scoreTitle(ctx.game, entry.title + " " + entry.id);
       if (score < ctx.threshold) continue;
       ++matched;
@@ -617,7 +628,7 @@ void collectIdentifiers(const JsonValue& node, std::vector<std::pair<std::string
 
 void runIndex(Ctx& ctx, const Source& source) {
   for (const std::string& listingUrl : indexUrls(ctx, source)) {
-    if (abortRequested()) return;
+    if (stopRequested()) return;
     HttpResponse res = httpGet(listingUrl);
     if (res.status != 200 || res.body.empty()) {
       logDebug(source.name + " listing " + std::to_string(res.status) + " " + listingUrl);
@@ -661,7 +672,7 @@ void runIndex(Ctx& ctx, const Source& source) {
     size_t matched = 0;
 
     for (const PageLink& link : page.links) {
-      if (abortRequested()) break;
+      if (stopRequested()) break;
       std::string kind = classify(link.href);
 
       if (isFileBearing(kind)) {
@@ -713,10 +724,16 @@ std::string renderTemplate(const std::string& tpl, const std::string& query,
   return out;
 }
 
+int64_t huntStartedAtMs() { return g_huntStartMs.load(); }
+
 void huntMany(const std::vector<std::string>& games, const std::string& consolePref,
               const Config& config,
               const std::function<void(size_t, std::vector<Hit>)>& onGameDone,
               const std::function<void(const Hit&)>& onHit) {
+  const int64_t huntStarted = nowMs();
+  g_huntStartMs = huntStarted;
+  g_huntDeadlineMs = huntStarted + kHuntBudgetMs;
+
   const size_t inFlight = std::min<size_t>(3, games.size());
   CountingSemaphore slots(static_cast<int>(std::max<size_t>(1, inFlight)));
   std::vector<std::thread> threads;
@@ -732,7 +749,7 @@ void huntMany(const std::vector<std::string>& games, const std::string& consoleP
         ~Release() { slots->release(); }
       } release{&slots};
 
-      if (abortRequested()) return;
+      if (stopRequested()) return;
 
       ThreadPool pool(config.settings.concurrency + 4);
       HuntResult result = huntGame(games[index], consolePref, config, pool, onHit);
@@ -760,8 +777,8 @@ void huntMany(const std::vector<std::string>& games, const std::string& consoleP
         result.hits = trimByGroup(seated, limit);
       }
 
-      if (config.settings.verify && !result.hits.empty() && !abortRequested()) {
-        verifyAll(result.hits, pool);
+      if (config.settings.verify && !result.hits.empty() && !stopRequested()) {
+        verifyAll(result.hits, pool, g_huntDeadlineMs.load());
         if (onHit) {
           for (const Hit& hit : result.hits) onHit(hit);
         }
@@ -772,6 +789,7 @@ void huntMany(const std::vector<std::string>& games, const std::string& consoleP
   }
 
   for (std::thread& thread : threads) thread.join();
+  g_huntDeadlineMs = 0;
 }
 
 HuntResult huntGame(const std::string& game, const std::string& consolePref, const Config& config,

@@ -356,8 +356,9 @@ void verifyHit(Hit& hit) {
   }
 }
 
-void verifyAll(std::vector<Hit>& hits, ThreadPool& pool) {
+void verifyAll(std::vector<Hit>& hits, ThreadPool& pool, int64_t deadlineMs) {
   for (Hit& hit : hits) {
+    if (deadlineMs > 0 && nowMs() >= deadlineMs) break;
     Hit* pointer = &hit;
     pool.submit([pointer] {
       std::string key = normalizeUrl(pointer->url) + "|" + pointer->kind;
@@ -395,7 +396,13 @@ void verifyAll(std::vector<Hit>& hits, ThreadPool& pool) {
       }
     });
   }
-  pool.waitForIdle(60000);
+  long long waitMs = 60000;
+  if (deadlineMs > 0) {
+    long long remaining = deadlineMs - nowMs();
+    if (remaining < 1) remaining = 1;
+    if (remaining < waitMs) waitMs = remaining;
+  }
+  pool.waitForIdle(waitMs);
 }
 
 void resetProbeCache() {

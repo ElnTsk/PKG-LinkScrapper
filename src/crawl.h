@@ -38,6 +38,12 @@ struct HuntResult {
   std::vector<std::string> errors;
 };
 
+// A hunt (crawl plus probing) stops accepting new work after this long and
+// reports what it has; leftovers stay unverified for Re-check.
+constexpr int kHuntBudgetMs = 30000;
+// when the whole run started - the gui counts the same clock down on screen
+int64_t huntStartedAtMs();
+
 // Links the caller wants to stop seeing: stubs, 404s, hosts that never answer.
 // The list must outlive the hunt.
 void setDeadStore(const std::vector<std::string>* urls);

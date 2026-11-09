@@ -57,6 +57,7 @@ enum Ids {
   IDC_THRESHOLD_LABEL,
   IDC_DETAILS,
   IDC_DOWNLOAD,
+  IDC_TIMER_LABEL,
 };
 
 enum DlIds {
@@ -190,7 +191,9 @@ struct Ui {
   HWND limitLabel = nullptr;
   HWND limit = nullptr;
   HWND thresholdLabel = nullptr;
+  HWND timerLabel = nullptr;
   HWND threshold = nullptr;
+  int64_t huntStartedMs = 0;
   HWND verify = nullptr;
   HWND recommended = nullptr;
   HWND dark = nullptr;
@@ -1127,7 +1130,9 @@ void layoutControls() {
   MoveWindow(g.thresholdLabel, x, controlRow + 4, 46, 16, TRUE);
   x += 46 + 4;
   MoveWindow(g.threshold, x, controlRow, 56, height, TRUE);
-  x += 56 + gap + gap;
+  x += 56 + gap;
+  MoveWindow(g.timerLabel, x, controlRow + 4, 60, 16, TRUE);
+  x += 60 + gap;
   MoveWindow(g.verify, x, controlRow + 2, 104, height - 2, TRUE);
   x += 104 + gap;
   MoveWindow(g.recommended, x, controlRow + 2, 132, height - 2, TRUE);
@@ -1323,6 +1328,7 @@ void applyTrustLists() {
 
 void startHuntFromUi() {
   if (g.running) return;
+  g.huntStartedMs = nowMs();
 
   std::string raw = editText(g.games);
   std::vector<std::string> games;
@@ -1482,9 +1488,9 @@ struct CheckSpec {
   const wchar_t* label;
 };
 
-const CheckSpec kChecks[] = {{IDC_VERIFY, L"verify links"},
-                             {IDC_RECOMMENDED, L"recommended only"},
-                             {IDC_DARK, L"dark"}};
+const CheckSpec kChecks[] = {{IDC_VERIFY, L"Verify Links"},
+                             {IDC_RECOMMENDED, L"Recommended Only"},
+                             {IDC_DARK, L"Dark"}};
 
 HWND checkWindow(int id) {
   switch (id) {
@@ -2737,8 +2743,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                            FIXED_PITCH | FF_DONTCARE, "Consolas");
 
       g.hint = createControl(window, "STATIC",
-                             "Games - one per line, or separated by ; . Ctrl+Enter hunts. Download "
-                             "pulls the selected link, or every part of a set.",
+                             "Games - One Per Line, Or Separated By ; . Ctrl+Enter Hunts. Download "
+                             "Pulls The Selected Link, Or Every Part Of A Set.",
                              0, 0, 0, instance);
       SendMessageW(g.hint, WM_SETFONT, reinterpret_cast<WPARAM>(g.bold), TRUE);
       g.games = createControl(window, "EDIT", "", WS_VSCROLL | ES_MULTILINE | ES_WANTRETURN |
@@ -2748,21 +2754,23 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                                 CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | WS_TABSTOP, 0, IDC_CONSOLE,
                                 instance);
       fillCombo(g.console, {"Both", "PS4", "PS5"}, 0);
-      g.limitLabel = createControl(window, "STATIC", "links/game", SS_RIGHT, 0, IDC_LIMIT_LABEL, instance);
+      g.limitLabel = createControl(window, "STATIC", "Links/Game", SS_RIGHT, 0, IDC_LIMIT_LABEL, instance);
       g.limit = createControl(window, "EDIT", "40", ES_NUMBER | WS_TABSTOP | ES_CENTER, 0,
                               IDC_LIMIT, instance);
-      g.thresholdLabel = createControl(window, "STATIC", "match", SS_RIGHT, 0, IDC_THRESHOLD_LABEL,
+      g.thresholdLabel = createControl(window, "STATIC", "Match", SS_RIGHT, 0, IDC_THRESHOLD_LABEL,
                                         instance);
       g.threshold = createControl(window, "EDIT", "0.72", WS_TABSTOP | ES_CENTER, 0,
                                   IDC_THRESHOLD, instance);
-      g.verify = createControl(window, "BUTTON", "verify links", BS_OWNERDRAW | WS_TABSTOP, 0,
+      g.timerLabel = createControl(window, "STATIC", "", SS_LEFT, 0, IDC_TIMER_LABEL, instance);
+      SendMessageW(g.timerLabel, WM_SETFONT, reinterpret_cast<WPARAM>(g.bold), TRUE);
+      g.verify = createControl(window, "BUTTON", "Verify Links", BS_OWNERDRAW | WS_TABSTOP, 0,
                                IDC_VERIFY, instance);
       g.checkVerify = true;
-      g.recommended = createControl(window, "BUTTON", "recommended only",
+      g.recommended = createControl(window, "BUTTON", "Recommended Only",
                                     BS_OWNERDRAW | WS_TABSTOP, 0, IDC_RECOMMENDED, instance);
 
       loadThemePreference();
-      g.dark = createControl(window, "BUTTON", "dark", BS_OWNERDRAW | WS_TABSTOP, 0, IDC_DARK,
+      g.dark = createControl(window, "BUTTON", "Dark", BS_OWNERDRAW | WS_TABSTOP, 0, IDC_DARK,
                              instance);
       g.checkDark = g.darkMode;
 
@@ -3152,6 +3160,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         rebuildRows();
         populateList();
       } else if (wParam == DETAILS_TIMER) {
+        if (g.running && g.huntStartedMs > 0) {
+          int64_t left = kHuntBudgetMs - (nowMs() - g.huntStartedMs);
+          if (left < 0) left = 0;
+          std::string seconds = std::to_string((left + 999) / 1000) + "s";
+          if (editText(g.timerLabel) != seconds) setEditText(g.timerLabel, seconds);
+        } else if (!g.running && !editText(g.timerLabel).empty()) {
+          setEditText(g.timerLabel, "");
+        }
         showDetails();
       }
       return 0;

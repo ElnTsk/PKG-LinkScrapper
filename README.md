@@ -29,6 +29,10 @@ Made by [**&lt;/ElonTusk&gt;**](https://github.com/ElnTsk).
    separated by `;`.
 3. Pick `PS4` or `PS5` (or leave it on `Both`) and press **Hunt** (or Ctrl+Enter).
 
+A hunt runs for at most **30 seconds** — the countdown sits next to the `Match`
+field. When the clock runs out the grid keeps what was found; rows still marked
+`unverified` can be finished with **Re-check**.
+
 Rows appear as they are found and update in place while each link is probed.
 A one-game hunt usually takes 30–90 seconds.
 
@@ -37,7 +41,7 @@ A one-game hunt usually takes 30–90 seconds.
 | control | what it does |
 | --- | --- |
 | Games box | one title per line; `#` starts a comment line |
-| Ctrl+Enter | start hunting |
+| Ctrl+Enter | start hunting; the 30s countdown shows next to `Match` |
 | console dropdown | `Both`, `PS4`, `PS5` |
 | `links/game` | how many rows to keep per game (a part set counts as one row) |
 | `match` | name strictness, 0.5 loose → 1.0 exact |
