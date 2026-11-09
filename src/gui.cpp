@@ -193,8 +193,10 @@ struct Ui {
   HWND thresholdLabel = nullptr;
   HWND timerLabel = nullptr;
   HWND dlBar = nullptr;
+  std::string dlStatusText;
   double dlFraction = 0;
   bool dlWasBusy = false;
+  int64_t dlHoldUntilMs = 0;
   int dlLastDone = 0;
   int dlLastFailed = 0;
   HWND threshold = nullptr;
@@ -1189,10 +1191,10 @@ void layoutControls() {
   const int filterWidth = std::min(260, std::max(150, static_cast<int>(client.right) - margin - x));
   int filterLeft = std::max(x, static_cast<int>(client.right) - margin - filterWidth);
   MoveWindow(g.filter, filterLeft, buttonRow, filterWidth, height, TRUE);
+  if (g.dlBar) MoveWindow(g.dlBar, filterLeft, buttonRow, filterWidth, height, TRUE);
 
   MoveWindow(g.list, margin, listTop, width, client.bottom - listTop - statusHeight - detailsHeight - margin - gap, TRUE);
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
-  MoveWindow(g.dlBar, margin, client.bottom - statusHeight - 9, width, 6, TRUE);
   MoveWindow(g.status, 0, client.bottom - statusHeight, client.right, statusHeight, TRUE);
 
   int rightEdge = static_cast<int>(client.right);
@@ -1225,12 +1227,19 @@ LRESULT CALLBACK dlBarProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
     FillRect(dc, &area, back);
     DeleteObject(back);
     int filled = static_cast<int>(area.right * g.dlFraction);
-    if (filled < 3) filled = 3;  // visible while the connection is still opening
-    if (filled > 0) {
-      RECT fill{0, 0, filled, area.bottom};
-      HBRUSH green = CreateSolidBrush(RGB(46, 160, 67));
-      FillRect(dc, &fill, green);
-      DeleteObject(green);
+    if (filled < 3) filled = 3;
+    if (filled > area.right) filled = area.right;
+    RECT fill{0, 0, filled, area.bottom};
+    HBRUSH green = CreateSolidBrush(RGB(46, 160, 67));
+    FillRect(dc, &fill, green);
+    DeleteObject(green);
+    if (!g.dlStatusText.empty()) {
+      std::wstring text = widen(g.dlStatusText);
+      SetBkMode(dc, TRANSPARENT);
+      SetTextColor(dc, RGB(255, 255, 255));
+      HGDIOBJ oldFont = SelectObject(dc, g.bold);
+      DrawTextW(dc, text.c_str(), -1, &area, DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+      SelectObject(dc, oldFont);
     }
     HBRUSH border = CreateSolidBrush(p.border);
     FrameRect(dc, &area, border);
@@ -3176,14 +3185,35 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           }
           g.dlFraction = items.empty() ? 0 : done / static_cast<double>(items.size());
           if (g.dlFraction > 1) g.dlFraction = 1;
-          if (!g.dlWasBusy) ShowWindow(g.dlBar, SW_SHOW);
+          if (!g.dlWasBusy) {
+            ShowWindow(g.dlBar, SW_SHOW);
+            ShowWindow(g.filter, SW_HIDE);
+          }
+          char speed[64];
+          std::snprintf(speed, sizeof(speed), "%.1f MB/s  -  %d of %d files",
+                        downloadsAggregateMBs(), static_cast<int>(done), static_cast<int>(items.size()));
+          g.dlStatusText = speed;
           InvalidateRect(g.dlBar, nullptr, TRUE);
           g.dlWasBusy = true;
+          g.dlHoldUntilMs = 0;
           g.dlLastDone = finished;
           g.dlLastFailed = failed;
-        } else if (g.dlWasBusy) {
-          g.dlWasBusy = false;
-          ShowWindow(g.dlBar, SW_HIDE);
+        } else if (g.dlWasBusy || (g.dlHoldUntilMs > nowMs() && g.dlHoldUntilMs > 0)) {
+          if (g.dlWasBusy) {
+            g.dlWasBusy = false;
+            if (g.dlLastFailed == 0 && g.dlLastDone > 0) {
+              g.dlStatusText = std::to_string(g.dlLastDone) + " file(s) saved";
+              g.dlFraction = 1;
+              g.dlHoldUntilMs = nowMs() + 3000;
+            }
+          }
+          if (g.dlHoldUntilMs > 0 && nowMs() >= g.dlHoldUntilMs) {
+            g.dlHoldUntilMs = 0;
+            ShowWindow(g.dlBar, SW_HIDE);
+            ShowWindow(g.filter, SW_SHOW);
+            setStatusText(0, std::to_string(g.dlLastDone) + " file(s) downloaded");
+          }
+          InvalidateRect(g.dlBar, nullptr, TRUE);
           if (g.dlLastFailed > 0) {
             setStatusText(0, std::to_string(g.dlLastFailed) + " download(s) failed - double-click the row to open it in your browser");
             MessageBoxW(g.window,
