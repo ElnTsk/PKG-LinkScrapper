@@ -11,3 +11,4 @@ f2825b	2026-11-09T22:21:09.612Z	1fichier.com	github-ps4db	Astrobot	https://1fich
 4fab27	2026-11-09T23:35:50.889Z	archive.org	pegasus-ps4	Call of Duty	https://archive.org/download/ps4-fpkg-collection-english-c/Call%20of%20Duty%20Black%20Ops%204%20-%20[US]%20[EN]%20[1.26].pkg
 14e631	2026-11-09T23:41:28.810Z	mega.nz	github-ps4db	Call of Duty	https://mega.nz/folder/g0IjkSzC#HcFEm3tUC_c459KEpe6CJw
 d77df2	2026-11-09T23:41:30.567Z	archive.org	pegasus-ps4	Call of Duty	https://archive.org/download/ps4-fpkg-collection-english-c/Call%20of%20Duty%20Black%20Ops%206%20-%20[US]%20[EN]%20[1.58]%20[CP].pkg
+f5dd33	2026-11-09T23:41:32.080Z	filecrypt.cc	github-ps4db	Call of Duty	https://filecrypt.cc/Container/281233D06D.html
