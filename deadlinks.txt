@@ -1,0 +1,2 @@
+# PKG-LinkScrapper dead link reports - approved by </ElonTusk>
+# code	approved_at	host	source	game	url
