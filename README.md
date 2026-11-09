@@ -111,6 +111,8 @@ should add `--pause` so its window does not vanish when the run ends.
    `resolve_redirects`.
 4. Scores every candidate title against the title you asked for, drops other
    platforms (PS2/PS3/PSP/Xbox/Switch) and the console you did not ask for.
+   Compound spellings count as the same title: `Astrobot` finds `Astro Bot`,
+   `spiderman 2` finds `Spider-Man 2`, `gtav` finds `GTA V`.
 5. Probes every kept link (`HEAD` with `Range: bytes=0-0`, `GET` fallback) and
    records alive / dead / blocked / container with size where the host reports it.
 

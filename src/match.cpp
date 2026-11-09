@@ -57,6 +57,49 @@ bool hasWord(const std::vector<std::string>& tokens, const std::string& word) {
   return std::find(tokens.begin(), tokens.end(), word) != tokens.end();
 }
 
+// walk both token lists together from the front, allowing either side to merge
+// adjacent words until it spells the other side's word. returns true only when
+// at least one merge happened, so plain word matches keep their own scores.
+bool consumePrefix(const std::vector<std::string>& query, size_t qi,
+                   const std::vector<std::string>& candidate, size_t ci, bool merged) {
+  if (qi == query.size()) return merged;
+  if (ci == candidate.size()) return false;
+
+  if (query[qi] == candidate[ci] && consumePrefix(query, qi + 1, candidate, ci + 1, merged)) {
+    return true;
+  }
+
+  std::string acc = candidate[ci];
+  for (size_t k = ci + 1; k < candidate.size(); ++k) {
+    acc += candidate[k];
+    if (acc.size() > query[qi].size()) break;
+    if (acc.size() >= 4 && acc == query[qi] &&
+        consumePrefix(query, qi + 1, candidate, k + 1, true)) {
+      return true;
+    }
+  }
+
+  acc = query[qi];
+  for (size_t k = qi + 1; k < query.size(); ++k) {
+    acc += query[k];
+    if (acc.size() > candidate[ci].size()) break;
+    if (acc.size() >= 4 && acc == candidate[ci] &&
+        consumePrefix(query, k + 1, candidate, ci + 1, true)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// "Astrobot" is "Astro Bot" with the space missing. tried wherever the plain
+// word sequence is tried - at the front of the title, and one word in.
+bool compoundPrefixMatch(const std::vector<std::string>& query,
+                         const std::vector<std::string>& candidate) {
+  if (query.empty() || candidate.empty()) return false;
+  if (consumePrefix(query, 0, candidate, 0, false)) return true;
+  return candidate.size() > 1 && consumePrefix(query, 0, candidate, 1, false);
+}
+
 bool hasPlaystationGeneration(const std::vector<std::string>& tokens, const std::string& generation) {
   for (size_t i = 0; i + 1 < tokens.size(); ++i) {
     if (tokens[i] == "playstation" && tokens[i + 1] == generation) return true;
@@ -125,6 +168,10 @@ double scoreTitle(const std::string& query, const std::string& candidate) {
   int at = indexOfSequence(candidateTokens, queryTokens);
   if (at == 0) return 0.95;
   if (at == 1) return 0.9;
+
+  // "Astrobot" is "Astro Bot" with the space missing; token coverage cannot see
+  // that, and the bigram score lands right on the fence
+  if (compoundPrefixMatch(queryTokens, candidateTokens)) return 0.9;
 
   std::vector<std::string> meaningful;
   for (const std::string& token : queryTokens) {

@@ -172,6 +172,15 @@ void matchCases() {
   check(scoreTitle("spider-man 2", "The Amazing Spider Man 2 - Download Game PS4") < 0.72,
         "two leading words is a different game");
   check(scoreTitle("elden ring", "God of War Ragnarok PS4") < 0.5, "unrelated titles");
+  check(scoreTitle("Astrobot", "ASTRO BOT") >= 0.9, "compound query meets split title");
+  check(scoreTitle("astro bot", "AstroBot") >= 0.9, "split query meets compound title");
+  check(scoreTitle("astrobot", "Astro Bot Deluxe Edition") >= 0.9,
+        "compound query meets longer split title");
+  check(scoreTitle("spiderman 2", "Spider-Man 2") >= 0.9, "compound plus number");
+  check(scoreTitle("gtav", "GTA V") >= 0.9, "short compound still matches");
+  check(scoreTitle("astrobot", "Astro Boy") < 0.72, "a merged word that differs stays out");
+  check(scoreTitle("ratchet clank", "Ratchet & Clank Rift Apart") >= 0.9,
+        "compound inside a longer title");
   check(detectConsole("Elden Ring PPSA04610") == "PS5", "ppsa means ps5");
   check(detectConsole("Elden Ring CUSA12345") == "PS4", "cusa means ps4");
   check(detectConsole("Spider Man 2 PS4 FPKG") == "PS4", "fpkg means ps4");

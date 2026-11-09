@@ -28,7 +28,7 @@
 
 namespace {
 
-const char* kVersion = "1.0.0";
+const char* kVersion = "1.0.1";
 
 std::string helpText() {
   std::string text;
