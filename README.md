@@ -86,14 +86,16 @@ treated as one title, not several.
 
 ## console build
 
-`PKG-LinkScrapper.exe` runs the same engine from flags, for piping and scheduled jobs.
-Run it with no arguments and it opens a prompt that waits for input.
+`PKG-LinkScrapper-cli.exe` is the same engine with a console front end, for pipes
+and scheduled jobs. It comes out of the same build; the windowed exe takes game
+names from its arguments but none of the flags. Run the cli with no arguments
+and it opens a prompt that waits for input.
 
 ```
-PKG-LinkScrapper.exe "elden ring" "god of war ragnarok" --console ps4
-PKG-LinkScrapper.exe -i games.txt --console both --format json -o found.json
-type games.txt | PKG-LinkScrapper.exe --stdin --console ps5
-PKG-LinkScrapper.exe --sources
+PKG-LinkScrapper-cli.exe "elden ring" "god of war ragnarok" --console ps4
+PKG-LinkScrapper-cli.exe -i games.txt --console both --format json -o found.json
+type games.txt | PKG-LinkScrapper-cli.exe --stdin --console ps5
+PKG-LinkScrapper-cli.exe --sources
 ```
 
 Names work on one line too, separated by `;`. A shortcut that passes arguments
