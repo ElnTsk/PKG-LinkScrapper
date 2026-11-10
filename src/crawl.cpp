@@ -147,7 +147,8 @@ void ingestJob(Ctx& ctx,
                const std::string& pageTitle,
                bool trusted,
                int depth,
-               const std::string& consoleHint);
+               const std::string& consoleHint,
+               double seedScore);
 
 void submitIngest(Ctx& ctx,
                   const Source* source,
@@ -156,11 +157,12 @@ void submitIngest(Ctx& ctx,
                   std::string pageTitle,
                   bool trusted,
                   int depth,
-                  std::string consoleHint) {
+                  std::string consoleHint,
+                  double seedScore = 0) {
   ctx.pool->submit([&ctx, source, url = std::move(url), anchorText = std::move(anchorText),
                     pageTitle = std::move(pageTitle), trusted, depth,
-                    consoleHint = std::move(consoleHint)]() mutable {
-    ingestJob(ctx, source, url, anchorText, pageTitle, trusted, depth, consoleHint);
+                    consoleHint = std::move(consoleHint), seedScore]() mutable {
+    ingestJob(ctx, source, url, anchorText, pageTitle, trusted, depth, consoleHint, seedScore);
   });
 }
 
@@ -217,7 +219,8 @@ void ingestJob(Ctx& ctx,
                const std::string& pageTitle,
                bool trusted,
                int depth,
-               const std::string& consoleHint) {
+               const std::string& consoleHint,
+               double seedScore) {
   if (stopRequested()) return;
 
   std::string current = url;
@@ -351,7 +354,7 @@ void ingestJob(Ctx& ctx,
     // a page only survives this far when the source matched it; the floor keeps
     // a trusted submit (json ids, tracker pages) from being trimmed off the end
     recordHit(ctx, *source, finalUrl, "page", title, hint, true,
-              std::max(pageScore, ctx.threshold), finalUrl);
+              std::max(std::max(pageScore, ctx.threshold), seedScore), finalUrl);
   }
 }
 
@@ -663,8 +666,11 @@ void runIndex(Ctx& ctx, const Source& source) {
           std::string url = replaceAll(source.itemUrl, "{id}", id);
           std::string hint = detectConsole(readable + " " + title);
           if (hint.empty()) hint = toUpperAscii(source.console);
-          submitIngest(ctx, &source, url, title.empty() ? readable : title, "", true, source.depth,
-                       hint);
+          double seed = std::max(scoreTitle(ctx.game, readable), scoreTitle(ctx.game, title));
+          // inline: tracker pages must land before the hunt clock, not after a
+          // queue of thirty other jobs
+          ingestJob(ctx, &source, url, title.empty() ? readable : title, "", true, source.depth,
+                    hint, seed);
           ++built;
         }
         logDebug(source.name + " ids " + listingUrl + " -> " + std::to_string(built) + " of " +
@@ -809,9 +815,15 @@ void huntMany(const std::vector<std::string>& games, const std::string& consoleP
         }
       }
       if (haveFileLink) {
+        // tracker pages are not shop fronts - they carry the update history and
+        // stay beside the file rows
+        static const std::set<std::string> trackers = {"prosperopatches.com",
+                                                       "orbispatches.com"};
         result.hits.erase(
             std::remove_if(result.hits.begin(), result.hits.end(),
-                           [](const Hit& hit) { return hit.kind == "page"; }),
+                           [](const Hit& hit) {
+                             return hit.kind == "page" && !trackers.count(hit.host);
+                           }),
             result.hits.end());
       }
 
@@ -840,7 +852,9 @@ HuntResult huntGame(const std::string& game, const std::string& consolePref, con
   ctx.onHit = onHit;
   ctx.threshold = config.settings.threshold;
   ctx.maxFetch = config.settings.maxFetchPerGame;
-  ctx.hitCeiling = static_cast<size_t>(std::max(1, config.settings.maxPerGame)) * 4;
+  // the ceiling is a memory bound, not a row limit: too tight a number here
+  // starves the last sources of a busy hunt
+  ctx.hitCeiling = static_cast<size_t>(std::max(160, config.settings.maxPerGame * 4));
 
   long long started = nowMs();
   for (const Source& source : config.sources) {

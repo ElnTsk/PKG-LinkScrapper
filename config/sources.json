@@ -203,6 +203,17 @@
       "keep_pages": false
     },
     {
+      "name": "orbispatches",
+      "type": "index",
+      "console": "PS4",
+      "_comment": "PS4 update tracker: search API -> titleid -> tracker page with patch versions, sizes and firmware",
+      "search_url": "https://www.orbispatches.com/api/internal/search?term={q}",
+      "item_url": "https://www.orbispatches.com/{id}",
+      "pages": 1,
+      "depth": 1,
+      "keep_pages": true
+    },
+    {
       "name": "prosperopatches",
       "type": "index",
       "console": "PS5",

@@ -199,6 +199,16 @@ const char* kEmbeddedConfig = R"JSON({
       "keep_pages": false
     },
     {
+      "name": "orbispatches",
+      "type": "index",
+      "console": "PS4",
+      "search_url": "https://www.orbispatches.com/api/internal/search?term={q}",
+      "item_url": "https://www.orbispatches.com/{id}",
+      "pages": 1,
+      "depth": 1,
+      "keep_pages": true
+    },
+    {
       "name": "prosperopatches",
       "type": "index",
       "console": "PS5",

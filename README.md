@@ -184,6 +184,7 @@ rows it contributed to the current hunt.
 | `github-ps4db` | catalog | 6443 PS4 titles, ~40k links (1fichier, filecrypt, mediafire) |
 | `pegasus-ps4` | catalog | 866 PS4 fpkgs on archive.org |
 | `prosperopatches` | site | PS5 update tracker — patch versions, sizes, firmware |
+| `orbispatches` | site | PS4 update tracker — same shape as prosperopatches |
 
 Two more ship parked, with the reason written next to them in the config:
 `psxhax-forum` (search needs a session cookie) and `arabicps4games` (its links

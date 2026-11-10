@@ -393,6 +393,26 @@ HttpResponse httpRequest(const std::string& url,
     awaitBackoff(400 * (1 << attempt));
   }
 
+    // a transport-level failure on a machine whose ipv6 route is half dead is
+  // not the host's fault - try once through the system curl before giving up
+  if (verb == "GET" && body.empty()) {
+    std::string command = "curl.exe -sS -L --max-time 30 -A \"" + g_userAgent +
+                          "\" -w \"\\n%{http_code}\" \"" + url + "\"";
+    std::string output;
+    int code = runHiddenCommand(command, output);
+    size_t split = output.find_last_of('\n');
+    if (code == 0 && split != std::string::npos) {
+      HttpResponse rescued;
+      rescued.status = std::strtol(output.c_str() + split + 1, nullptr, 10);
+      rescued.body = output.substr(0, split);
+      rescued.finalUrl = url;
+      if (rescued.status >= 200 && rescued.status < 400) {
+        logDebug("curl rescued " + url);
+        return rescued;
+      }
+    }
+  }
+
   HttpResponse failure;
   failure.error = lastError.empty() ? "request failed" : lastError;
   failure.finalUrl = url;
