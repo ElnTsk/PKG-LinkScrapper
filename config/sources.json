@@ -133,6 +133,7 @@
     {
       "name": "pegasus-dlps",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "_comment": "official Pegasus DL default source; 1710 PS5 titles, refreshed daily",
       "urls": [
@@ -145,6 +146,7 @@
     {
       "name": "pegasus-pippo",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "_comment": "exFAT dumps and fpkgs with backports",
       "urls": [
@@ -157,6 +159,7 @@
     {
       "name": "pegasus-pfs",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "_comment": "ffpfs/pkg builds, part sets labelled in the link names",
       "urls": [
@@ -169,6 +172,7 @@
     {
       "name": "pegasus-zer0",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "_comment": "zer0game releases; some archives carry a site password noted in the entry",
       "urls": [
@@ -181,6 +185,7 @@
     {
       "name": "github-ps4db",
       "type": "catalog",
+      "trusted": true,
       "console": "PS4",
       "_comment": "dlpsgame-derived database: 6443 PS4 titles with mirror links",
       "urls": [
@@ -193,6 +198,7 @@
     {
       "name": "pegasus-ps4",
       "type": "catalog",
+      "trusted": true,
       "console": "PS4",
       "_comment": "866 fpkgs on archive.org; most items need an archive.org login and verify as blocked",
       "urls": [

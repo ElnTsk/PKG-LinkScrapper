@@ -147,6 +147,7 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "pegasus-dlps",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "urls": ["https://pegasus-dl.dev/catalogs/dlps.json"],
       "pages": 1,
@@ -156,6 +157,7 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "pegasus-pippo",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "urls": ["https://pegasus-dl.dev/catalogs/pippo.json"],
       "pages": 1,
@@ -165,6 +167,7 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "pegasus-pfs",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "urls": ["https://pegasus-dl.dev/catalogs/pfs.json"],
       "pages": 1,
@@ -174,6 +177,7 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "pegasus-zer0",
       "type": "catalog",
+      "trusted": true,
       "console": "PS5",
       "urls": ["https://pegasus-dl.dev/catalogs/zer0.json"],
       "pages": 1,
@@ -183,6 +187,7 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "github-ps4db",
       "type": "catalog",
+      "trusted": true,
       "console": "PS4",
       "urls": ["https://raw.githubusercontent.com/huggingfacer04/ps4-games-database/main/ps4_games_with_downloads.json"],
       "pages": 1,
@@ -192,6 +197,7 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "pegasus-ps4",
       "type": "catalog",
+      "trusted": true,
       "console": "PS4",
       "urls": ["https://raw.githubusercontent.com/M3hmetSa1t/pegasus-ps4-collection-catalog/main/pegasus-ps4-catalog.json"],
       "pages": 1,
