@@ -8,9 +8,9 @@ TARGET="${TARGET:-x86_64-windows-gnu}"
 COMMON=(-std=c++20 -O2 -Wall -Wextra -Wno-unused-parameter)
 CORE=(src/util.cpp src/json.cpp src/hosts.cpp src/html.cpp src/match.cpp src/config.cpp src/http.cpp
       src/crawl.cpp src/verify.cpp src/parts.cpp src/trust.cpp src/ping.cpp src/output.cpp
-      src/deadstore.cpp src/download.cpp src/resolve.cpp src/catalog.cpp src/report.cpp)
+      src/deadstore.cpp src/download.cpp src/merge.cpp src/resolve.cpp src/catalog.cpp src/report.cpp)
 GUI_LIBS=(-lwinhttp -lcomctl32 -lcomdlg32 -lshell32 -lole32 -luuid -lgdi32 -luser32 -ldwmapi
-          -luxtheme -ladvapi32 -lws2_32)
+          -luxtheme -ladvapi32 -lws2_32 -lbcrypt)
 
 [ -x "$ZIG" ] || { echo "zig not found at $ZIG"; exit 1; }
 
@@ -35,7 +35,7 @@ echo "== PKG-LinkScrapper.exe (one file: windowed, themed, defaults compiled in)
 # console build, for pipes and scheduled jobs - not part of the single-file deliverable
 echo "== PKG-LinkScrapper-cli.exe (console)"
 "$ZIG" c++ "${COMMON[@]}" -target "$TARGET" -static \
-  -lwinhttp -lws2_32 -lole32 -ladvapi32 \
+  -lwinhttp -lws2_32 -lole32 -ladvapi32 -lbcrypt \
   "${CORE[@]}" src/main.cpp -o build/PKG-LinkScrapper-cli.exe
 
 python3 - <<'PY'

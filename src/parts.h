@@ -25,3 +25,12 @@ std::string partGroupKey(const std::string& url);
 // Trim to a row budget without ever splitting a set: either all of part01..21
 // survives or none of it does. Input order decides priority.
 std::vector<Hit> trimByGroup(const std::vector<Hit>& hits, size_t rowLimit);
+
+// Filename-level detection for files already on disk (no URL needed). True when
+// the name is one piece of a split PKG that concatenates straight back into a
+// whole .pkg: "GAME_0.pkg" / "GAME_1.pkg" (PSN underscore split) or
+// "game.pkg.001" / "game.pkg.002" (raw numeric split). basePkg gets the merged
+// file name ("GAME.pkg" / "game.pkg") and index gets the piece number.
+// RAR/7z volume sets (.part01.rar, .z01) are NOT split pkgs and return false -
+// those need an extractor, not a byte concatenation.
+bool splitPkgPart(const std::string& filename, std::string& basePkg, int& index);

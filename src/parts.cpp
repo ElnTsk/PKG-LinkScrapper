@@ -298,3 +298,39 @@ std::vector<Hit> trimByGroup(const std::vector<Hit>& hits, size_t rowLimit) {
 
   return out;
 }
+
+bool splitPkgPart(const std::string& filename, std::string& basePkg, int& index) {
+  std::string lower = toLowerAscii(filename);
+  size_t slash = lower.find_last_of("/\\");
+  if (slash != std::string::npos) lower = lower.substr(slash + 1);
+  if (lower.size() < 5) return false;
+
+  size_t dot = lower.find_last_of('.');
+  if (dot == std::string::npos || dot + 1 >= lower.size()) return false;
+  std::string tail = lower.substr(dot + 1);
+
+  // raw numeric split of a whole pkg: game.pkg.001, game.pkg.002 ...
+  if (tail.size() == 3 && digitsOnly(tail)) {
+    std::string stem = lower.substr(0, dot);
+    if (stem.size() > 4 && stem.compare(stem.size() - 4, 4, ".pkg") == 0) {
+      int value = toInt(tail);
+      if (value >= 1 && value <= 999) {
+        basePkg = stem;
+        index = value;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // PSN underscore split: GAME_0.pkg, GAME_1.pkg ...
+  if (lower.compare(dot, 4, ".pkg") != 0) return false;
+  std::string stem = lower.substr(0, dot);
+  size_t underscore = stem.find_last_of('_');
+  if (underscore == std::string::npos || underscore + 1 >= stem.size()) return false;
+  std::string number = stem.substr(underscore + 1);
+  if (!digitsOnly(number) || number.size() > 3) return false;
+  basePkg = stem.substr(0, underscore) + ".pkg";
+  index = toInt(number);
+  return true;
+}

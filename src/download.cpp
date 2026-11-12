@@ -23,6 +23,8 @@
 
 #include "deadstore.h"
 #include "http.h"
+#include "merge.h"
+#include "parts.h"
 #include "util.h"
 
 namespace {
@@ -58,6 +60,19 @@ std::vector<std::thread> g_threads;
 std::atomic<bool> g_shutdown{false};
 std::atomic<bool> g_paused{false};
 HINTERNET g_session = nullptr;
+
+// One split-pkg set queued in a single click. ids are in part order; once every
+// member is done the pieces concatenate into output and a checksum is written.
+struct MergeGroup {
+  std::vector<std::string> ids;
+  std::string output;
+  std::string label;
+  bool fired = false;
+  bool blocked = false;
+};
+std::vector<MergeGroup> g_mergeGroups;
+std::vector<std::string> g_mergeLog;
+std::atomic<int> g_merging{0};
 
 std::string folderFile() { return stateDirectory() + "\\downloads.txt"; }
 
@@ -133,12 +148,73 @@ bool ensureSession() {
   return true;
 }
 
+std::string fileBaseName(const std::string& path) {
+  size_t slash = path.find_last_of("/\\");
+  return slash == std::string::npos ? path : path.substr(slash + 1);
+}
+
+// Runs under g_mutex from finish(). When the last piece of a split-pkg set lands,
+// snapshot the part paths and merge on a detached thread so the transfer workers
+// are never blocked by a multi-gigabyte concatenation.
+void advanceMerges(Job* job) {
+  for (MergeGroup& group : g_mergeGroups) {
+    if (group.fired || group.blocked) continue;
+    bool member = false;
+    for (const std::string& id : group.ids) {
+      if (id == job->item.id) {
+        member = true;
+        break;
+      }
+    }
+    if (!member) continue;
+
+    if (job->item.state != "done") {
+      group.blocked = true;
+      g_mergeLog.push_back("merge skipped - " + group.label + ": a part did not finish");
+      continue;
+    }
+
+    bool allDone = true;
+    std::vector<std::string> paths;
+    paths.reserve(group.ids.size());
+    for (const std::string& id : group.ids) {
+      auto found = g_jobs.find(id);
+      if (found == g_jobs.end() || found->second->item.state != "done") {
+        allDone = false;
+        break;
+      }
+      paths.push_back(found->second->item.path);
+    }
+    if (!allDone) continue;
+
+    group.fired = true;
+    g_merging.fetch_add(1);
+    std::string output = group.output;
+    std::string label = group.label;
+    size_t count = paths.size();
+    std::thread([paths, output, label, count]() {
+      MergeOutcome merged = mergePkgParts(paths, output);
+      std::string line;
+      if (merged.ok) {
+        line = "merged " + std::to_string(count) + " parts -> " + fileBaseName(output) + " (" +
+               formatBytes(merged.bytes) + ") - sha256 written";
+      } else {
+        line = "merge failed - " + label + ": " + merged.error;
+      }
+      std::lock_guard<std::mutex> lock(g_mutex);
+      g_merging.fetch_sub(1);
+      g_mergeLog.push_back(line);
+    }).detach();
+  }
+}
+
 void finish(Job* job, const std::string& state, const std::string& error = std::string()) {
   std::lock_guard<std::mutex> lock(g_mutex);
   job->item.state = state;
   if (!error.empty()) job->item.error = error;
   if (state != "done") job->speedMBs.store(0.0);
   job->shownPaused.store(false);
+  advanceMerges(job);
 }
 
 // flips the visible state only when it changes, so a pause spin costs no locks
@@ -492,7 +568,8 @@ void ensureThreads(int want) {
 
 std::vector<std::string> downloadsAdd(const std::vector<std::string>& urls,
                                       const std::string& folder,
-                                      const std::vector<std::string>& names) {
+                                      const std::vector<std::string>& names,
+                                      int expectedParts) {
   std::vector<std::string> ids;
   if (folder.empty() || urls.empty()) return ids;
 
@@ -513,11 +590,56 @@ std::vector<std::string> downloadsAdd(const std::vector<std::string>& urls,
     g_order.push_back(job->item.id);
     ids.push_back(job->item.id);
   }
+
+  // A complete split-pkg set queued in one click merges itself when it lands.
+  // Require the caller's full part count so a set missing a dead piece is never
+  // concatenated into a short .pkg.
+  if (expectedParts >= 2) {
+    std::map<std::string, std::vector<std::pair<int, std::string>>> sets;
+    for (const std::string& id : ids) {
+      Job* job = g_jobs[id];
+      std::string base;
+      int index = 0;
+      if (splitPkgPart(job->item.name, base, index)) {
+        sets[folder + "|" + base].emplace_back(index, id);
+      }
+    }
+    for (auto& entry : sets) {
+      std::vector<std::pair<int, std::string>>& members = entry.second;
+      if (static_cast<int>(members.size()) != expectedParts) continue;
+      std::sort(members.begin(), members.end(),
+                [](const auto& a, const auto& b) { return a.first < b.first; });
+      bool complete = true;
+      for (size_t i = 0; i < members.size(); ++i) {
+        if (i > 0 && members[i].first == members[i - 1].first) complete = false;
+        if (members[i].first != members.front().first + static_cast<int>(i)) complete = false;
+      }
+      if (!complete) continue;
+      std::string base = entry.first.substr(entry.first.find('|') + 1);
+      MergeGroup group;
+      group.label = base;
+      group.output = uniquePath(folder, base);
+      for (const auto& member : members) group.ids.push_back(member.second);
+      g_mergeGroups.push_back(std::move(group));
+    }
+  }
   return ids;
 }
 
 void downloadsStart(int workers) {
-  if (!ensureSession()) return;
+  if (!ensureSession()) {
+    // a session that cannot open would leave the rows queued forever and the
+    // progress strip stuck at zero - fail them so the UI can say why
+    std::lock_guard<std::mutex> lock(g_mutex);
+    for (auto& entry : g_jobs) {
+      const std::string state = entry.second->item.state;
+      if (state == "queued" || state == "paused") {
+        entry.second->item.state = "failed";
+        entry.second->item.error = "cannot open a network session";
+      }
+    }
+    return;
+  }
   {
     std::lock_guard<std::mutex> lock(g_mutex);
     g_paused.store(false);
@@ -601,6 +723,8 @@ void downloadsAbort() {
     }
     g_shutdown.store(true);
     g_ready.clear();
+    g_mergeGroups.clear();
+    g_mergeLog.clear();
   }
   g_wake.notify_all();
   std::vector<std::thread> threads;
@@ -653,7 +777,14 @@ size_t downloadsActive() {
   return active;
 }
 
-bool downloadsBusy() { return downloadsActive() > 0; }
+bool downloadsBusy() { return downloadsActive() > 0 || g_merging.load() > 0; }
+
+std::vector<std::string> downloadsTakeMergeLog() {
+  std::lock_guard<std::mutex> lock(g_mutex);
+  std::vector<std::string> out;
+  out.swap(g_mergeLog);
+  return out;
+}
 
 std::string downloadsFolderDefault() {
   std::ifstream stream(folderFile());

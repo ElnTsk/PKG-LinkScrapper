@@ -102,22 +102,36 @@ fold its members open underneath, `Left` to fold them back.
 
 **Download** on a set row pulls every part, in order, into the same folder.
 
+**Split packages reassemble themselves.** A PSN-style split (`_0.pkg`, `_1.pkg`)
+or a raw numeric split (`game.pkg.001`, `game.pkg.002`) is byte-concatenated back
+into one `.pkg` the moment the last piece lands, and a sidecar
+`<name>.pkg.sha256.txt` is written beside it with the SHA-256, the file name and
+the byte size. It only fires when the whole set was queued — a set with a dead
+part is never merged into a short, corrupt package. RAR/7z volumes are left
+alone: those need an extractor, not concatenation.
+
 ## Downloading
 
 Press **Download** — no dialog, no questions: the file starts straight into
 `%USERPROFILE%DownloadsPKG-LinkScrapper` (the last folder used is remembered,
 and `PKG_LS_AUTO_FOLDER` overrides it). The downloads window opens with the
-queue, speed and Cancel, and a green bar fills under the grid while it runs. If a
-transfer fails, a box says so and reminds you that double-clicking the row opens
-the link in your browser. Interrupted downloads resume: pressing Download again
-continues from the `.part` file instead of starting over.
+queue, speed and Cancel, and a green bar fills under the grid while it runs —
+green and full on a clean save, red with the failure count when a transfer dies.
+Interrupted downloads resume: pressing Download again continues from the `.part`
+file instead of starting over.
+
+Right-click **Direct download** is greyed out with the reason when the row
+cannot actually hand over bytes — a release or tracker page, a link locker, or a
+share host with no resolver reads "opens in the browser" instead of queueing a
+download that goes nowhere. Live file links, and the hosts the tool can walk
+(1fichier, rootz.so, vikingfile), stay enabled.
 
 What it will not do:
 
 - **captcha hosts** — vikingfile, gofile, rootz, akirabox, datavaults, terabox
   and friends ask a browser for a click or a challenge. Those rows say `gated`,
-  and Download refuses before queueing anything: the status bar names the host
-  and tells you to open the row. No failed download rows for those.
+  and Direct download is greyed with the host as the reason: open the row in the
+  browser. No failed download rows for those.
 - **filecrypt containers** — the page holds the real links behind a captcha;
   open it, solve it, copy what it shows.
 - **gofile** — javascript builds the file list after the page loads, so nothing
@@ -183,8 +197,8 @@ rows it contributed to the current hunt.
 | `pegasus-zer0` | catalog | ~57 zer0game PS5 releases |
 | `github-ps4db` | catalog | 6443 PS4 titles, ~40k links (1fichier, filecrypt, mediafire) |
 | `pegasus-ps4` | catalog | 866 PS4 fpkgs on archive.org |
-| `prosperopatches` | site | PS5 update tracker — patch versions, sizes, firmware |
-| `orbispatches` | site | PS4 update tracker — same shape as prosperopatches |
+| `prosperopatches` | site | PS5 update tracker — patch versions, sizes, firmware; trusted, rows lead |
+| `orbispatches` | site | PS4 update tracker — same shape as prosperopatches; trusted, rows lead |
 
 Two more ship parked, with the reason written next to them in the config:
 `psxhax-forum` (search needs a session cookie) and `arabicps4games` (its links
@@ -325,9 +339,9 @@ file except `main.cpp` (that one is the console front end):
 c++ -std=c++20 -O2 src/util.cpp src/json.cpp src/hosts.cpp src/html.cpp \
     src/match.cpp src/config.cpp src/http.cpp src/crawl.cpp src/verify.cpp \
     src/parts.cpp src/trust.cpp src/ping.cpp src/output.cpp src/deadstore.cpp \
-    src/download.cpp src/resolve.cpp src/catalog.cpp src/gui.cpp \
+    src/download.cpp src/merge.cpp src/resolve.cpp src/catalog.cpp src/gui.cpp \
     -lwinhttp -lcomctl32 -lcomdlg32 -lshell32 -lole32 -luuid -lgdi32 \
-    -luser32 -ldwmapi -luxtheme -ladvapi32 -lws2_32 -mwindows \
+    -luser32 -ldwmapi -luxtheme -ladvapi32 -lws2_32 -lbcrypt -mwindows \
     -o PKG-LinkScrapper.exe
 ```
 

@@ -100,6 +100,10 @@ void classifyCases() {
             "filehost",
         "multi part rar set");
   check(classify("https://filecrypt.cc/Container/B07A100C2E.html") == "container", "container page");
+  check(classify("https://www.orbispatches.com/CUSA34384") == "page",
+        "orbispatches tracker page is a page, not a file");
+  check(classify("https://prosperopatches.com/PPSA08330") == "page",
+        "prosperopatches tracker page is a page, not a file");
   check(classify("https://tpi.li/aAtUSsNRVK") == "short", "link locker");
   check(classify("https://en.wikipedia.org/wiki/Elden_Ring") == "skip", "blocked host");
   check(classify("javascript:void(0)") == "skip", "non http");
@@ -392,6 +396,33 @@ void partsCases() {
   check(plainRows[1].url == "https://buzzheavier.com/eqfjuyld9vxm", "order preserved");
 }
 
+void splitPkgCases() {
+  std::string base;
+  int index = -1;
+
+  check(splitPkgPart("ELDEN_00-ELDENRING_0.pkg", base, index), "underscore part0 detected");
+  checkEq(base, "elden_00-eldenring.pkg", "underscore merged base name");
+  check(index == 0, "underscore part0 index");
+  check(splitPkgPart("ELDEN_00-ELDENRING_12.pkg", base, index) && index == 12,
+        "underscore part12 index");
+
+  check(splitPkgPart("game.pkg.001", base, index), "numeric pkg split detected");
+  checkEq(base, "game.pkg", "numeric merged base name");
+  check(index == 1, "numeric part001 index");
+  check(splitPkgPart("game.pkg.021", base, index) && index == 21, "numeric part021 index");
+
+  check(splitPkgPart("C:\\downloads\\GAME_0.pkg", base, index), "path prefix stripped");
+  checkEq(base, "game.pkg", "path prefix merged base");
+
+  check(!splitPkgPart("Bloodborne.PS4-PRELUDE.pkg", base, index), "whole pkg is not a part");
+  check(!splitPkgPart("CUSA03173-EUR-Update-v1.09.pkg", base, index), "update pkg is not a part");
+  check(!splitPkgPart("game.part01.rar", base, index), "rar volume is not a split pkg");
+  check(!splitPkgPart("game.z01", base, index), "zip volume is not a split pkg");
+  check(!splitPkgPart("game.001", base, index), "numeric split without pkg base is not merged");
+  check(!splitPkgPart("game.pkg", base, index), "plain pkg is not a part");
+  check(!splitPkgPart("", base, index), "empty name is not a part");
+}
+
 void catalogCases() {
   const std::string pegasus = R"({
     "name": "PS5 Catalog",
@@ -480,6 +511,7 @@ int main() {
   matchCases();
   htmlCases();
   partsCases();
+  splitPkgCases();
   catalogCases();
   trustCases();
   std::printf("%d checks, %d failed\n", checks, failures);

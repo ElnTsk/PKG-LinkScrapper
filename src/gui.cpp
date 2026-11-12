@@ -196,6 +196,8 @@ struct Ui {
   std::string dlStatusText;
   double dlFraction = 0;
   bool dlWasBusy = false;
+  bool dlFailedVisual = false;
+  bool dlFailedShown = false;
   int64_t dlHoldUntilMs = 0;
   int dlLastDone = 0;
   int dlLastFailed = 0;
@@ -301,7 +303,7 @@ void showDownloadsWindow();
 void themeDownloads();
 void themeSources();
 void showSourcesWindow();
-bool grabbableState(const std::string& state);
+bool downloadableHit(const std::string& url, const std::string& state, const std::string& kind);
 
 std::wstring widen(const std::string& value) {
   if (value.empty()) return std::wstring();
@@ -881,7 +883,22 @@ void populateList() {
     if (hit.partCount >= 2) ++sets;
     if (!hit.trust.empty()) ++trusted;
     if (hit.state == "unverified") ++pending;
-    if (hit.partCount >= 2 || grabbableState(hit.state)) ++grabbable;
+    bool downloadable = false;
+    if (hit.partCount >= 2) {
+      downloadable = true;
+      for (const std::string& url : hit.partUrls) {
+        const Hit* member = &hit;
+        auto found = g.indexByUrl.find(url);
+        if (found != g.indexByUrl.end()) member = &g.hits[found->second];
+        if (!downloadableHit(url, member->state, member->kind)) {
+          downloadable = false;
+          break;
+        }
+      }
+    } else {
+      downloadable = downloadableHit(hit.url, hit.state, hit.kind);
+    }
+    if (downloadable) ++grabbable;
   }
 
   std::string summary = std::to_string(g.rows.size());
@@ -1234,9 +1251,9 @@ LRESULT CALLBACK dlBarProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
     if (filled < 3) filled = 3;
     if (filled > area.right) filled = area.right;
     RECT fill{0, 0, filled, area.bottom};
-    HBRUSH green = CreateSolidBrush(RGB(46, 160, 67));
-    FillRect(dc, &fill, green);
-    DeleteObject(green);
+    HBRUSH tone = CreateSolidBrush(g.dlFailedVisual ? RGB(179, 55, 55) : RGB(46, 160, 67));
+    FillRect(dc, &fill, tone);
+    DeleteObject(tone);
     if (!g.dlStatusText.empty()) {
       std::wstring text = widen(g.dlStatusText);
       SetBkMode(dc, TRANSPARENT);
@@ -1651,12 +1668,6 @@ void toggleCheck(int id) { setChecked(id, !isChecked(id)); }
 
 // ---- downloads -------------------------------------------------------------
 
-// worth pulling: not a listing page, and the probe never called it dead
-bool grabbableState(const std::string& state) {
-  return state != "page" && state != "container" && state != "gated" && state != "dead" &&
-         state != "stub" && state != "shell" && state != "unreachable";
-}
-
 constexpr int kDlColumnCount = 6;
 const wchar_t* kDlColumnHeaders[] = {L"File", L"State", L"Done", L"Total", L"MB/s", L"Note"};
 const int kDlColumnWidths[] = {330, 88, 118, 96, 62, 250};
@@ -1714,39 +1725,58 @@ std::string downloadTarget() {
   return downloadsFolderDefault();
 }
 
-// a host that answers every share with a page or a challenge only hands the
-// file to a browser click; queueing it can only end in a failed row
-bool pullable(const std::string& url, const std::string& state) {
-  if (shareServesPage(registrable(bareHost(url))) && !resolvableHost(url)) return false;
-  return grabbableState(state) || (state == "gated" && resolvableHost(url));
+// will this link actually hand over bytes when the user clicks Direct download?
+// A release/tracker page, a link-locker, or a share page with no resolver only
+// ends in an HTML file or an instant failure - those rows are grayed out and
+// left to the browser, instead of queueing a download that goes nowhere.
+bool downloadableHit(const std::string& url, const std::string& state, const std::string& kind) {
+  if (state == "dead" || state == "stub" || state == "unreachable" || state == "shell" ||
+      state == "skipped") {
+    return false;
+  }
+  const bool pageHost = shareServesPage(registrable(bareHost(url)));
+  if (kind == "direct") {
+    if (state == "gated") return false;
+    return !(pageHost && !resolvableHost(url));
+  }
+  if (kind == "filehost") {
+    // a host with a resolver hands the file over after the site's own form
+    if (resolvableHost(url)) return true;
+    // a plain file host that the probe saw answer real bytes (non-html, real
+    // size) pulls straight through; a page-style host without a resolver cannot
+    return !pageHost && state == "alive";
+  }
+  return false;
 }
 
 std::vector<std::string> downloadUrlsFor(const Hit& hit) {
-  std::vector<std::string> urls;
-  auto stateOf = [](const std::string& url) {
-    auto found = g.indexByUrl.find(url);
-    if (found == g.indexByUrl.end()) return true;
-    return pullable(url, g.hits[found->second].state);
-  };
   if (!hit.isChild && hit.partCount >= 2) {
+    std::vector<std::string> urls;
+    urls.reserve(hit.partUrls.size());
     for (const std::string& url : hit.partUrls) {
-      if (stateOf(url)) urls.push_back(url);
+      const Hit* member = &hit;
+      auto found = g.indexByUrl.find(url);
+      if (found != g.indexByUrl.end()) member = &g.hits[found->second];
+      // all or nothing: a set missing a piece cannot be completed or merged
+      if (!downloadableHit(url, member->state, member->kind)) return {};
+      urls.push_back(url);
     }
     return urls;
   }
-  if (pullable(hit.url, hit.state)) urls.push_back(hit.url);
-  return urls;
+  if (downloadableHit(hit.url, hit.state, hit.kind)) return {hit.url};
+  return {};
 }
 
 // the refusal names the host when the host is the reason
-bool startDownloads(const std::vector<std::string>& urls);
+bool startDownloads(const std::vector<std::string>& urls, int expectedParts = 0);
 void downloadRow(const Hit& hit) {
-  if (startDownloads(downloadUrlsFor(hit))) return;
+  int expected = (!hit.isChild && hit.partCount >= 2) ? hit.partCount : 0;
+  if (startDownloads(downloadUrlsFor(hit), expected)) return;
   // no usable file link: the browser is the working path, and it says nothing
   ShellExecuteA(g.window, "open", hit.url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
-bool startDownloads(const std::vector<std::string>& urls) {
+bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
   if (urls.empty()) return false;
   std::string folder = downloadTarget();
   if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
@@ -1773,7 +1803,7 @@ bool startDownloads(const std::vector<std::string>& urls) {
   }
   if (queue.empty()) return false;
 
-  std::vector<std::string> ids = downloadsAdd(queue, folder, names);
+  std::vector<std::string> ids = downloadsAdd(queue, folder, names, expectedParts);
   downloadsStart(3);
   dl.allPaused = false;
   showDownloadsWindow();
@@ -3037,11 +3067,19 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                                   : "Direct download";
               AppendMenuA(menu, MF_STRING, 9, label.c_str());
             } else {
-              // still shown, so it is clear the host is the reason, not the tool
-              const char* reason = pullable(hit->url, hit->state)
-                                       ? "Direct download - pick a row with a live link"
-                                       : "Direct download - this host wants a browser click";
-              AppendMenuA(menu, MF_STRING | MF_GRAYED, 9, reason);
+              // grayed, and the label says who is in the way, so a dead click is
+              // never the first thing the user learns
+              std::string reason;
+              if (hit->kind == "page") {
+                reason = "Direct download - a release page, opens in the browser";
+              } else if (hit->kind == "container" || hit->kind == "short") {
+                reason = "Direct download - a link locker, opens in the browser";
+              } else if (hit->kind == "filehost") {
+                reason = "Direct download - this host wants a browser click";
+              } else {
+                reason = "Direct download - no live file link on this row";
+              }
+              AppendMenuA(menu, MF_STRING | MF_GRAYED, 9, reason.c_str());
             }
             AppendMenuA(menu, MF_SEPARATOR, 0, nullptr);
             AppendMenuA(menu, MF_STRING, 2, "Copy URL");
@@ -3073,7 +3111,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             } else if (choice == 8) {
               toggleParts(focused);
             } else if (choice == 9) {
-              startDownloads(grab);
+              startDownloads(grab, grouped ? hit->partCount : 0);
             } else if (choice == 11) {
               showDownloadsWindow();
             } else if (choice == 2) {
@@ -3172,6 +3210,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           if (!g.dlWasBusy) {
             ShowWindow(g.dlBar, SW_SHOW);
             ShowWindow(g.filter, SW_HIDE);
+            g.dlFailedVisual = false;
+            g.dlFailedShown = false;
           }
           char speed[64];
           std::snprintf(speed, sizeof(speed), "%d / %d parts  -  %.1f MB/s",
@@ -3186,29 +3226,32 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         } else if (g.dlWasBusy || (g.dlHoldUntilMs > nowMs() && g.dlHoldUntilMs > 0)) {
           if (g.dlWasBusy) {
             g.dlWasBusy = false;
-            if (g.dlLastFailed == 0 && g.dlLastDone > 0) {
-              g.dlStatusText = std::to_string(g.dlLastDone) + " file(s) saved";
-              g.dlFraction = 1;
-              g.dlHoldUntilMs = nowMs() + 3000;
+            // land the strip at full and hold it: green for a clean save, red
+            // when something failed, so the bar always ends in a visible state
+            g.dlFraction = 1;
+            g.dlFailedVisual = g.dlLastFailed > 0;
+            g.dlStatusText = g.dlLastFailed > 0
+                                 ? std::to_string(g.dlLastFailed) + " download(s) failed"
+                                 : std::to_string(g.dlLastDone) + " file(s) saved";
+            g.dlHoldUntilMs = nowMs() + 3000;
+            setStatusText(0, g.dlStatusText);
+            if (g.dlLastFailed > 0 && !g.dlFailedShown) {
+              g.dlFailedShown = true;
+              MessageBoxW(g.window,
+                          L"The download failed.\n\nDouble-click the row to open the link in your "
+                          L"browser.",
+                          L"PKG-LinkScrapper", MB_OK | MB_ICONWARNING);
             }
           }
           if (g.dlHoldUntilMs > 0 && nowMs() >= g.dlHoldUntilMs) {
             g.dlHoldUntilMs = 0;
             ShowWindow(g.dlBar, SW_HIDE);
             ShowWindow(g.filter, SW_SHOW);
-            setStatusText(0, std::to_string(g.dlLastDone) + " file(s) downloaded");
           }
           InvalidateRect(g.dlBar, nullptr, TRUE);
-          if (g.dlLastFailed > 0) {
-            setStatusText(0, std::to_string(g.dlLastFailed) + " download(s) failed - double-click the row to open it in your browser");
-            MessageBoxW(g.window,
-                        L"The download failed.\n\nDouble-click the row to open the link in your "
-                        L"browser.",
-                        L"PKG-LinkScrapper", MB_OK | MB_ICONWARNING);
-          } else if (g.dlLastDone > 0) {
-            setStatusText(0, std::to_string(g.dlLastDone) + " file(s) downloaded");
-          }
         }
+        std::vector<std::string> mergeLog = downloadsTakeMergeLog();
+        if (!mergeLog.empty()) setStatusText(0, mergeLog.back());
         showDetails();
       }
       return 0;

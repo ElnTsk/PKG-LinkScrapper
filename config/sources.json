@@ -211,23 +211,25 @@
     {
       "name": "orbispatches",
       "type": "index",
+      "trusted": true,
       "console": "PS4",
       "_comment": "PS4 update tracker: search API -> titleid -> tracker page with patch versions, sizes and firmware",
       "search_url": "https://www.orbispatches.com/api/internal/search?term={q}",
       "item_url": "https://www.orbispatches.com/{id}",
       "pages": 1,
-      "depth": 1,
+      "depth": 2,
       "keep_pages": true
     },
     {
       "name": "prosperopatches",
       "type": "index",
+      "trusted": true,
       "console": "PS5",
       "_comment": "official-update tracker: search API -> titleid -> tracker page with patch versions, sizes and firmware; the patch download url sits behind Turnstile and opens in the browser",
       "search_url": "https://prosperopatches.com/api/internal/search?term={q}",
       "item_url": "https://prosperopatches.com/{id}",
       "pages": 1,
-      "depth": 1,
+      "depth": 2,
       "keep_pages": true
     },
     {

@@ -207,21 +207,23 @@ const char* kEmbeddedConfig = R"JSON({
     {
       "name": "orbispatches",
       "type": "index",
+      "trusted": true,
       "console": "PS4",
       "search_url": "https://www.orbispatches.com/api/internal/search?term={q}",
       "item_url": "https://www.orbispatches.com/{id}",
       "pages": 1,
-      "depth": 1,
+      "depth": 2,
       "keep_pages": true
     },
     {
       "name": "prosperopatches",
       "type": "index",
+      "trusted": true,
       "console": "PS5",
       "search_url": "https://prosperopatches.com/api/internal/search?term={q}",
       "item_url": "https://prosperopatches.com/{id}",
       "pages": 1,
-      "depth": 1,
+      "depth": 2,
       "keep_pages": true
     },
     {
