@@ -1190,41 +1190,44 @@ void layoutControls() {
   x += 132 + gap;
   MoveWindow(g.dark, x, controlRow + 2, 82, height - 2, TRUE);
   x += 82 + gap;
+  const int controlEnd = x;
 
-  // the progress track fills the rest of the control row, always visible and
-  // never editable - it is feedback, not an input
-  const int trackLeft = x;
-  const int trackWidth = std::max(120, static_cast<int>(client.right) - margin - trackLeft);
-  if (g.dlBar) MoveWindow(g.dlBar, trackLeft, controlRow, trackWidth, height, TRUE);
-
-  // row two: actions on the left, the paste-a-link bar takes the rest
-  x = margin;
+  // row two: the six action buttons shrink before the right-hand controls can
+  // be pushed past the edge
   const int addWidth = 64;
   const int minLink = 160;
   const int totalWidth = static_cast<int>(client.right) - margin * 2;
-  // six buttons share whatever the link bar does not need, shrinking before
-  // the link bar can be pushed past the right edge
   int buttonWidth = 108;
   const int fixedWidth = 5 * gap + gap + addWidth + gap + minLink;
   if (6 * buttonWidth + fixedWidth > totalWidth) {
     buttonWidth = std::max(64, (totalWidth - fixedWidth) / 6);
   }
-  MoveWindow(g.hunt, x, buttonRow, buttonWidth, height, TRUE);
-  x += buttonWidth + gap;
-  MoveWindow(g.stop, x, buttonRow, buttonWidth, height, TRUE);
-  x += buttonWidth + gap;
-  MoveWindow(g.reprobe, x, buttonRow, buttonWidth, height, TRUE);
-  x += buttonWidth + gap;
-  MoveWindow(g.exportBtn, x, buttonRow, buttonWidth, height, TRUE);
-  x += buttonWidth + gap;
-  MoveWindow(g.reload, x, buttonRow, buttonWidth, height, TRUE);
-  x += buttonWidth + gap;
-  MoveWindow(g.download, x, buttonRow, buttonWidth, height, TRUE);
-  x += buttonWidth + gap + gap;
+  const int buttonsEnd = margin + 6 * (buttonWidth + gap);
 
-  int linkWidth = std::max(120, static_cast<int>(client.right) - margin - x - addWidth - gap);
-  MoveWindow(g.linkEdit, x, buttonRow + 2, linkWidth, height - 4, TRUE);
-  MoveWindow(g.linkAdd, x + linkWidth + gap, buttonRow + 2, addWidth, height - 4, TRUE);
+  // the progress track and the link bar share one span, so they read as the
+  // same length: whatever the control row and the Add button leave
+  const int sharedLeft =
+      std::max(controlEnd, buttonsEnd + gap + addWidth + gap);
+  const int sharedWidth = std::max(120, static_cast<int>(client.right) - margin - sharedLeft);
+
+  if (g.dlBar) MoveWindow(g.dlBar, sharedLeft, controlRow, sharedWidth, height, TRUE);
+
+  int x2 = margin;
+  MoveWindow(g.hunt, x2, buttonRow, buttonWidth, height, TRUE);
+  x2 += buttonWidth + gap;
+  MoveWindow(g.stop, x2, buttonRow, buttonWidth, height, TRUE);
+  x2 += buttonWidth + gap;
+  MoveWindow(g.reprobe, x2, buttonRow, buttonWidth, height, TRUE);
+  x2 += buttonWidth + gap;
+  MoveWindow(g.exportBtn, x2, buttonRow, buttonWidth, height, TRUE);
+  x2 += buttonWidth + gap;
+  MoveWindow(g.reload, x2, buttonRow, buttonWidth, height, TRUE);
+  x2 += buttonWidth + gap;
+  MoveWindow(g.download, x2, buttonRow, buttonWidth, height, TRUE);
+  x2 += buttonWidth + gap;
+
+  MoveWindow(g.linkAdd, sharedLeft - gap - addWidth, buttonRow + 2, addWidth, height - 4, TRUE);
+  MoveWindow(g.linkEdit, sharedLeft, buttonRow + 2, sharedWidth, height - 4, TRUE);
 
   MoveWindow(g.list, margin, listTop, width, client.bottom - listTop - statusHeight - detailsHeight - margin - gap, TRUE);
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
