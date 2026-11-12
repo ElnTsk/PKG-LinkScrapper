@@ -1172,16 +1172,16 @@ void layoutControls() {
   MoveWindow(g.timerLabel, static_cast<int>(client.right) - margin - 64, labelRow, 64, 16, TRUE);
   MoveWindow(g.games, margin, gamesTop, width, gamesHeight, TRUE);
 
-  // row one: what to hunt and how strict to be
+  // row one: uniform 10px gaps, label-to-box 6 - nothing floats
   int x = margin;
   MoveWindow(g.console, x, controlRow, 96, 200, TRUE);
-  x += 96 + gap + gap;
+  x += 96 + gap;
   MoveWindow(g.limitLabel, x, controlRow + 4, 70, 16, TRUE);
-  x += 70 + 4;
+  x += 70 + 6;
   MoveWindow(g.limit, x, controlRow + 4, 42, 20, TRUE);
-  x += 42 + gap + gap;
+  x += 42 + gap;
   MoveWindow(g.thresholdLabel, x, controlRow + 4, 46, 16, TRUE);
-  x += 46 + 4;
+  x += 46 + 6;
   MoveWindow(g.threshold, x, controlRow + 4, 52, 20, TRUE);
   x += 52 + gap;
   MoveWindow(g.verify, x, controlRow + 2, 104, height - 2, TRUE);
@@ -1204,11 +1204,12 @@ void layoutControls() {
   }
   const int buttonsEnd = margin + 6 * (buttonWidth + gap);
 
-  // the progress track and the link bar share one span, so they read as the
-  // same length: whatever the control row and the Add button leave
-  const int sharedLeft =
-      std::max(controlEnd, buttonsEnd + gap + addWidth + gap);
-  const int sharedWidth = std::max(120, static_cast<int>(client.right) - margin - sharedLeft);
+  // the progress track and the link bar share one span; Add sits inside the
+  // bar's right end so both read the same length
+  const int sharedLeft = std::max(controlEnd, buttonsEnd);
+  const int sharedRight = static_cast<int>(client.right) - margin;
+  const int sharedWidth = std::max(120, sharedRight - sharedLeft);
+  const int addLeft = sharedRight - addWidth;
 
   if (g.dlBar) MoveWindow(g.dlBar, sharedLeft, controlRow, sharedWidth, height, TRUE);
 
@@ -1226,8 +1227,9 @@ void layoutControls() {
   MoveWindow(g.download, x2, buttonRow, buttonWidth, height, TRUE);
   x2 += buttonWidth + gap;
 
-  MoveWindow(g.linkAdd, sharedLeft - gap - addWidth, buttonRow + 2, addWidth, height - 4, TRUE);
-  MoveWindow(g.linkEdit, sharedLeft, buttonRow + 2, sharedWidth, height - 4, TRUE);
+  MoveWindow(g.linkAdd, addLeft, buttonRow + 2, addWidth, height - 4, TRUE);
+  MoveWindow(g.linkEdit, sharedLeft, buttonRow + 2, std::max(80, addLeft - gap - sharedLeft),
+             height - 4, TRUE);
 
   MoveWindow(g.list, margin, listTop, width, client.bottom - listTop - statusHeight - detailsHeight - margin - gap, TRUE);
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
