@@ -1209,9 +1209,10 @@ void layoutControls() {
   MoveWindow(g.dark, x, controlRow + 2, 82, height - 2, TRUE);
   x += 82 + gap;
 
-  // the live filter sits at the end of the control row
-  const int filterWidth = std::min(240, std::max(140, static_cast<int>(client.right) - margin - x));
-  int filterLeft = std::max(x, static_cast<int>(client.right) - margin - filterWidth);
+  // the live filter fills the rest of the control row, and the download strip
+  // takes exactly that same span - no floating box, no gap after Dark
+  const int filterLeft = x;
+  const int filterWidth = std::max(120, static_cast<int>(client.right) - margin - filterLeft);
   MoveWindow(g.filter, filterLeft, controlRow, filterWidth, height, TRUE);
   if (g.dlBar) MoveWindow(g.dlBar, filterLeft, controlRow, filterWidth, height, TRUE);
 
@@ -2929,6 +2930,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
 
       g.filter = createControl(window, "EDIT", "", WS_TABSTOP | ES_AUTOHSCROLL, 0,
                                IDC_FILTER, instance);
+      SendMessageW(g.filter, EM_SETCUEBANNER, TRUE,
+                   reinterpret_cast<LPARAM>(L"Filter the rows"));
 
       g.linkEdit = createControl(window, "EDIT", "",
                                  WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE,
