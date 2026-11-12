@@ -50,14 +50,14 @@ A one-game hunt usually takes 30–90 seconds.
 | dark | dark window; remembered between runs |
 | Hunt / Stop | start a run / cancel it (partial downloads keep what they got) |
 | Re-check | probe the rows that are still `unverified`, without searching again |
-| Download | fetch the selected link, or every part of the selected set |
+| Download | fetch the selected link; on a part set the menu copies its links instead |
 | Export | save the visible rows; `.tsv`, `.csv` or `.json` by file extension |
 | Sources | list every source, the urls it crawls, park/restore them |
 | filter box | live filter across all columns |
 
 Click a column header to sort, again to reverse. Double-click a row to open the
-link. Right-click for Open / Copy URL / Copy row, plus Open all parts / Copy all
-part URLs on a set.
+link. Right-click for Open / Copy URL / Copy row, plus Open all parts /
+**Copy links** on a set — paste those links into the downloads box.
 
 ### Reporting a dead link
 
@@ -100,7 +100,9 @@ When the file names carry a part number, the parts become one row with a count
 instead of twenty loose rows. Click that row's Parts cell (or press `Right`) to
 fold its members open underneath, `Left` to fold them back.
 
-**Download** on a set row pulls every part, in order, into the same folder.
+**Download** on a set row is a **Copy links** action: it puts every part URL on
+the clipboard, one per line. Open the downloads window, paste them into the
+address bar and press **Add** — the queue pulls every part and merges the set.
 
 **Split packages reassemble themselves.** A PSN-style split (`_0.pkg`, `_1.pkg`)
 or a raw numeric split (`game.pkg.001`, `game.pkg.002`) is byte-concatenated back
@@ -119,6 +121,11 @@ queue, speed and Cancel, and a green bar fills under the grid while it runs —
 green and full on a clean save, red with the failure count when a transfer dies.
 Interrupted downloads resume: pressing Download again continues from the `.part`
 file instead of starting over.
+
+The downloads window has its own **address bar**: paste one link or a whole part
+set (one per line, or space separated), press **Add** or Enter, and it starts
+pulling — JDownloader style, no need to hunt first. Pasted split-package sets
+starting at the first part merge into one `.pkg` when they finish.
 
 Right-click **Direct download** is greyed out with the reason when the row
 cannot actually hand over bytes — a release or tracker page, a link locker, or a

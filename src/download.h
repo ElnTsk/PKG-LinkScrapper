@@ -27,7 +27,8 @@ struct DownloadItem {
 // `expectedParts`, when >= 2, is the full size of the split-pkg set this call
 // represents: the auto-merge only fires if exactly that many pieces of one set
 // were queued and they form a complete index sequence, so a set with a dead
-// part is never merged into a short, corrupt .pkg.
+// part is never merged into a short, corrupt .pkg. When 0 (pasted links) a
+// contiguous run starting at the natural first index is merged instead.
 std::vector<std::string> downloadsAdd(const std::vector<std::string>& urls,
                                       const std::string& folder,
                                       const std::vector<std::string>& names = {},

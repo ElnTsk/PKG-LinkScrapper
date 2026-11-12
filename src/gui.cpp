@@ -28,6 +28,10 @@
 #include "../src/match.h"
 #include "../src/output.h"
 #include "../src/parts.h"
+
+#ifndef EM_SETCUEBANNER
+#define EM_SETCUEBANNER (ECM_FIRST + 1)
+#endif
 #include "../src/hosts.h"
 #include "../src/report.h"
 #include "../src/resolve.h"
@@ -67,6 +71,8 @@ enum DlIds {
   IDC_DL_CANCEL,
   IDC_DL_CLEAR,
   IDC_DL_FOLDER,
+  IDC_DL_URL,
+  IDC_DL_ADD,
 };
 
 enum SxIds {
@@ -261,10 +267,13 @@ struct Downloads {
   HWND window = nullptr;
   HWND list = nullptr;
   HWND head = nullptr;
+  HWND url = nullptr;
+  HWND add = nullptr;
   HWND pause = nullptr;
   HWND cancel = nullptr;
   HWND clear = nullptr;
   HWND folder = nullptr;
+  WNDPROC urlProc = nullptr;
   std::vector<std::string> ids;
   std::vector<DownloadItem> items;
   bool allPaused = false;
@@ -1281,6 +1290,20 @@ LRESULT CALLBACK gamesSubclass(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
   return CallWindowProcA(g.gamesProc, hwnd, message, wParam, lParam);
 }
 
+// Enter in the link bar presses Add, so a paste-and-go is one keystroke
+LRESULT CALLBACK urlEditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+  if (message == WM_KEYDOWN && wParam == VK_RETURN) {
+    HWND parent = GetParent(hwnd);
+    HWND add = GetDlgItem(parent, IDC_DL_ADD);
+    if (add) {
+      SendMessageW(parent, WM_COMMAND, MAKEWPARAM(IDC_DL_ADD, BN_CLICKED),
+                   reinterpret_cast<LPARAM>(add));
+    }
+    return 0;
+  }
+  return CallWindowProcA(dl.urlProc, hwnd, message, wParam, lParam);
+}
+
 void progressSink(const char* line, int level) {
   if (!g.window || !line || level != 0) return;
   auto* copy = new std::string(line);
@@ -1726,6 +1749,31 @@ std::string downloadTarget() {
   return downloadsFolderDefault();
 }
 
+// split a pasted blob into http(s) links: one per line, or space separated
+std::vector<std::string> parseLinks(const std::string& text) {
+  std::vector<std::string> out;
+  std::set<std::string> seen;
+  size_t i = 0;
+  while (i < text.size()) {
+    while (i < text.size() && (std::isspace(static_cast<unsigned char>(text[i])) || text[i] == ',' ||
+                               text[i] == ';' || text[i] == '"')) {
+      ++i;
+    }
+    size_t start = i;
+    while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i])) && text[i] != ',' &&
+           text[i] != ';' && text[i] != '"') {
+      ++i;
+    }
+    std::string token = trim(text.substr(start, i - start));
+    if (token.size() > 8 && (startsWithI(token, "http://") || startsWithI(token, "https://")) &&
+        seen.insert(token).second) {
+      out.push_back(token);
+    }
+    if (out.size() >= 500) break;
+  }
+  return out;
+}
+
 // will this link actually hand over bytes when the user clicks Direct download?
 // A release/tracker page, a link-locker, or a share page with no resolver only
 // ends in an HTML file or an instant failure - those rows are grayed out and
@@ -1777,17 +1825,10 @@ void downloadRow(const Hit& hit) {
   ShellExecuteA(g.window, "open", hit.url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
-bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
-  if (urls.empty()) return false;
-  std::string folder = downloadTarget();
-  if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
-    CreateDirectoryA(folder.c_str(), nullptr);
-  }
-  downloadsFolderRemember(folder);
-
-  // hosts that hide the file behind one more step of their own are walked now,
-  // on the click - the link they hand back is single use, so it must not be
-  // spent during a hunt
+// hosts that hide the file behind one more step of their own are walked now,
+// on the click - the link they hand back is single use, so it must not be
+// spent during a hunt. Returns how many files were queued.
+int queueLinks(const std::vector<std::string>& urls, const std::string& folder, int expectedParts) {
   std::vector<std::string> queue;
   std::vector<std::string> names;
   for (const std::string& url : urls) {
@@ -1802,15 +1843,27 @@ bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
       names.push_back(direct.name);
     }
   }
-  if (queue.empty()) return false;
+  if (queue.empty()) return 0;
 
   std::vector<std::string> ids = downloadsAdd(queue, folder, names, expectedParts);
   downloadsStart(3);
+  return static_cast<int>(ids.size());
+}
+
+bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
+  if (urls.empty()) return false;
+  std::string folder = downloadTarget();
+  if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    CreateDirectoryA(folder.c_str(), nullptr);
+  }
+  downloadsFolderRemember(folder);
+
+  int queued = queueLinks(urls, folder, expectedParts);
+  if (queued <= 0) return false;
   dl.allPaused = false;
   showDownloadsWindow();
   refreshDownloads();
-  setStatusText(0, "direct download - " + std::to_string(ids.size()) + " file(s) saving to " +
-                       folder);
+  setStatusText(0, "direct download - " + std::to_string(queued) + " file(s) saving to " + folder);
   return true;
 }
 
@@ -1832,7 +1885,14 @@ void layoutDownloads() {
   const int top = margin + headHeight + gap;
   const int bottom = client.bottom - margin - height - gap;
   MoveWindow(dl.head, margin, margin, client.right - margin * 2, headHeight, TRUE);
-  MoveWindow(dl.list, margin, top, client.right - margin * 2, std::max(80, bottom - top), TRUE);
+
+  const int urlHeight = 26;
+  const int addWidth = 86;
+  MoveWindow(dl.url, margin, top, client.right - margin * 2 - addWidth - gap, urlHeight, TRUE);
+  MoveWindow(dl.add, client.right - margin - addWidth, top, addWidth, urlHeight, TRUE);
+  const int listTop = top + urlHeight + gap;
+  MoveWindow(dl.list, margin, listTop, client.right - margin * 2,
+             std::max(80, bottom - listTop), TRUE);
 }
 
 void insertDlColumn(int index) {
@@ -1973,7 +2033,9 @@ void themeDownloads() {
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
   const wchar_t* scheme = g.darkMode ? L"DarkMode_Explorer" : L"";
-  for (HWND control : {dl.head, dl.pause, dl.cancel, dl.clear, dl.folder}) themeWindow(control, scheme);
+  for (HWND control : {dl.head, dl.url, dl.add, dl.pause, dl.cancel, dl.clear, dl.folder}) {
+    themeWindow(control, scheme);
+  }
   themeWindow(dl.list, g.darkMode ? L"DarkMode_ItemsView" : L"");
   paintListHeader(dl.list);
   installFlatFrame(dl.list);
@@ -2017,6 +2079,17 @@ LRESULT CALLBACK downloadsProc(HWND window, UINT message, WPARAM wParam, LPARAM 
       dl.head = createControl(window, "STATIC", "", SS_LEFTNOWORDWRAP, 0, IDC_DL_HEAD, instance);
       SendMessageW(dl.head, WM_SETFONT, reinterpret_cast<WPARAM>(g.bold), TRUE);
 
+      // the link bar: paste one address or a whole part set, press Add, it pulls
+      dl.url = createControl(window, "EDIT", "",
+                             WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE, IDC_DL_URL,
+                             instance);
+      SendMessageW(dl.url, EM_SETCUEBANNER, TRUE,
+                   reinterpret_cast<LPARAM>(L"Paste a link, or a whole part set, then press Add"));
+      dl.urlProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
+          dl.url, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(urlEditProc)));
+      dl.add = createControl(window, "BUTTON", "Add", BS_OWNERDRAW | WS_TABSTOP, 0, IDC_DL_ADD,
+                             instance);
+
       dl.list = CreateWindowExA(0, WC_LISTVIEWA, "",
                                 WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS, 0, 0, 10, 10,
                                 window, reinterpret_cast<HMENU>(IDC_DL_LIST), instance, nullptr);
@@ -2059,6 +2132,14 @@ LRESULT CALLBACK downloadsProc(HWND window, UINT message, WPARAM wParam, LPARAM 
       return reinterpret_cast<LRESULT>(g.windowBrush);
     }
 
+    case WM_CTLCOLOREDIT: {
+      HDC dc = reinterpret_cast<HDC>(wParam);
+      const Palette& p = palette();
+      SetTextColor(dc, p.text);
+      SetBkColor(dc, p.field);
+      return reinterpret_cast<LRESULT>(g.fieldBrush);
+    }
+
     case WM_CTLCOLORBTN: {
       HDC dc = reinterpret_cast<HDC>(wParam);
       SetTextColor(dc, palette().text);
@@ -2097,6 +2178,28 @@ LRESULT CALLBACK downloadsProc(HWND window, UINT message, WPARAM wParam, LPARAM 
         case IDC_DL_FOLDER: {
           std::string folder = downloadsFolderDefault();
           ShellExecuteA(window, "open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+          return 0;
+        }
+        case IDC_DL_ADD: {
+          std::vector<std::string> urls = parseLinks(editText(dl.url));
+          if (urls.empty()) {
+            setStatusText(0, "no http(s) link in the box - paste an address first");
+            return 0;
+          }
+          std::string folder = downloadTarget();
+          if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            CreateDirectoryA(folder.c_str(), nullptr);
+          }
+          downloadsFolderRemember(folder);
+          int queued = queueLinks(urls, folder, 0);
+          dl.allPaused = false;
+          refreshDownloads();
+          if (queued > 0) {
+            setEditText(dl.url, "");
+            setStatusText(0, std::to_string(queued) + " link(s) queued - saving to " + folder);
+          } else {
+            setStatusText(0, "nothing pullable in those links");
+          }
           return 0;
         }
         default:
@@ -2146,6 +2249,9 @@ LRESULT CALLBACK downloadsProc(HWND window, UINT message, WPARAM wParam, LPARAM 
       dl.window = nullptr;
       dl.list = nullptr;
       dl.head = nullptr;
+      dl.url = nullptr;
+      dl.add = nullptr;
+      dl.urlProc = nullptr;
       dl.pause = nullptr;
       dl.cancel = nullptr;
       dl.clear = nullptr;
@@ -3056,18 +3162,18 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             AppendMenuA(menu, MF_STRING, 1, grouped ? "Open first part" : "Open link");
             if (grouped) {
               AppendMenuA(menu, MF_STRING, 5, "Open all parts");
-              AppendMenuA(menu, MF_STRING, 6, "Copy all part URLs");
               bool open = g.expanded.count(hit->url) != 0;
               AppendMenuA(menu, MF_STRING, 8, open ? "Hide the part list" : "Show the part list");
             }
             AppendMenuA(menu, MF_SEPARATOR, 0, nullptr);
-            if (!grab.empty()) {
-              std::string label = grouped
-                                      ? "Direct download - all parts (" +
-                                            std::to_string(grab.size()) + ")"
-                                  : "Direct download";
+            if (grouped) {
+              // a set goes to the downloads box as links, JDownloader style:
+              // copy them, paste, Add - the queue pulls every part and merges
+              std::string label =
+                  "Copy links (" + std::to_string(hit->partUrls.size()) + " parts)";
               AppendMenuA(menu, MF_STRING, 9, label.c_str());
-            } else {
+            } else if (!grab.empty()) {
+              AppendMenuA(menu, MF_STRING, 9, "Direct download");
               // grayed, and the label says who is in the way, so a dead click is
               // never the first thing the user learns
               std::string reason;
@@ -3104,15 +3210,18 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                 ShellExecuteA(window, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
               }
               setStatusText(0, "opening " + std::to_string(hit->partUrls.size()) + " parts");
-            } else if (choice == 6) {
-              std::string all;
-              for (const std::string& url : hit->partUrls) all += url + "\r\n";
-              copyToClipboard(all);
-              setStatusText(0, "copied " + std::to_string(hit->partUrls.size()) + " part urls");
             } else if (choice == 8) {
               toggleParts(focused);
             } else if (choice == 9) {
-              startDownloads(grab, grouped ? hit->partCount : 0);
+              if (grouped) {
+                std::string all;
+                for (const std::string& url : hit->partUrls) all += url + "\r\n";
+                copyToClipboard(all);
+                setStatusText(0, "copied " + std::to_string(hit->partUrls.size()) +
+                                     " links - paste them into the downloads box");
+              } else {
+                startDownloads(grab, 0);
+              }
             } else if (choice == 11) {
               showDownloadsWindow();
             } else if (choice == 2) {

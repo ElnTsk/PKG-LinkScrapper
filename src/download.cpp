@@ -591,25 +591,37 @@ std::vector<std::string> downloadsAdd(const std::vector<std::string>& urls,
     ids.push_back(job->item.id);
   }
 
-  // A complete split-pkg set queued in one click merges itself when it lands.
-  // Require the caller's full part count so a set missing a dead piece is never
-  // concatenated into a short .pkg.
-  if (expectedParts >= 2) {
+  // A complete split-pkg set queued together merges itself when it lands.
+  // With expectedParts the caller knows the set size (a row), so the count must
+  // match. Pasted links carry no count: accept a run that starts at the natural
+  // first index (0 for _0.pkg, 1 for .pkg.001) and is contiguous.
+  {
     std::map<std::string, std::vector<std::pair<int, std::string>>> sets;
+    std::map<std::string, int> naturalStart;
     for (const std::string& id : ids) {
       Job* job = g_jobs[id];
       std::string base;
       int index = 0;
       if (splitPkgPart(job->item.name, base, index)) {
-        sets[folder + "|" + base].emplace_back(index, id);
+        std::string key = folder + "|" + base;
+        sets[key].emplace_back(index, id);
+        std::string lowerName = toLowerAscii(job->item.name);
+        naturalStart[key] = (lowerName.size() > 4 &&
+                             lowerName.compare(lowerName.size() - 4, 4, ".pkg") == 0)
+                                ? 0
+                                : 1;
       }
     }
     for (auto& entry : sets) {
       std::vector<std::pair<int, std::string>>& members = entry.second;
-      if (static_cast<int>(members.size()) != expectedParts) continue;
+      if (expectedParts >= 2) {
+        if (static_cast<int>(members.size()) != expectedParts) continue;
+      } else if (members.size() < 2) {
+        continue;
+      }
       std::sort(members.begin(), members.end(),
                 [](const auto& a, const auto& b) { return a.first < b.first; });
-      bool complete = true;
+      bool complete = members.front().first == naturalStart[entry.first];
       for (size_t i = 0; i < members.size(); ++i) {
         if (i > 0 && members[i].first == members[i - 1].first) complete = false;
         if (members[i].first != members.front().first + static_cast<int>(i)) complete = false;
