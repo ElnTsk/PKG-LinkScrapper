@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/icon-square.png" width="150" alt="PKG-LinkScrapper icon">
+  <img src="docs/icon-square.png?v=2" width="150" alt="PKG-LinkScrapper icon">
 </p>
 
 # PKG-LinkScrapper
