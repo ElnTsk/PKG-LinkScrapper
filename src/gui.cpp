@@ -1215,9 +1215,18 @@ void layoutControls() {
   MoveWindow(g.filter, filterLeft, controlRow, filterWidth, height, TRUE);
   if (g.dlBar) MoveWindow(g.dlBar, filterLeft, controlRow, filterWidth, height, TRUE);
 
-  // row two: actions on the left, the paste-a-link bar on the right
+  // row two: actions on the left, the paste-a-link bar takes the rest
   x = margin;
-  const int buttonWidth = 108;
+  const int addWidth = 64;
+  const int minLink = 160;
+  const int totalWidth = static_cast<int>(client.right) - margin * 2;
+  // six buttons share whatever the link bar does not need, shrinking before
+  // the link bar can be pushed past the right edge
+  int buttonWidth = 108;
+  const int fixedWidth = 5 * gap + gap + addWidth + gap + minLink;
+  if (6 * buttonWidth + fixedWidth > totalWidth) {
+    buttonWidth = std::max(64, (totalWidth - fixedWidth) / 6);
+  }
   MoveWindow(g.hunt, x, buttonRow, buttonWidth, height, TRUE);
   x += buttonWidth + gap;
   MoveWindow(g.stop, x, buttonRow, buttonWidth, height, TRUE);
@@ -1231,12 +1240,9 @@ void layoutControls() {
   MoveWindow(g.download, x, buttonRow, buttonWidth, height, TRUE);
   x += buttonWidth + gap + gap;
 
-  const int addWidth = 64;
-  int linkWidth = std::max(180, static_cast<int>(client.right) - margin - x - addWidth - gap);
-  linkWidth = std::min(linkWidth, 420);
-  int linkLeft = std::max(x, static_cast<int>(client.right) - margin - addWidth - gap - linkWidth);
-  MoveWindow(g.linkEdit, linkLeft, buttonRow + 2, linkWidth, height - 4, TRUE);
-  MoveWindow(g.linkAdd, linkLeft + linkWidth + gap, buttonRow + 2, addWidth, height - 4, TRUE);
+  int linkWidth = std::max(120, static_cast<int>(client.right) - margin - x - addWidth - gap);
+  MoveWindow(g.linkEdit, x, buttonRow + 2, linkWidth, height - 4, TRUE);
+  MoveWindow(g.linkAdd, x + linkWidth + gap, buttonRow + 2, addWidth, height - 4, TRUE);
 
   MoveWindow(g.list, margin, listTop, width, client.bottom - listTop - statusHeight - detailsHeight - margin - gap, TRUE);
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
