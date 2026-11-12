@@ -53,7 +53,7 @@ A one-game hunt usually takes 30–90 seconds.
 | Download | fetch the selected link; on a part set the menu copies its links instead |
 | Export | save the visible rows; `.tsv`, `.csv` or `.json` by file extension |
 | Sources | list every source, the urls it crawls, park/restore them |
-| filter box | live filter across all columns |
+| progress bar | download feedback on the control row — a read-only track, green while it fills, red on failure |
 
 Click a column header to sort, again to reverse. Double-click a row to open the
 link. Right-click for Open / Copy URL / Copy row, plus Open all parts /

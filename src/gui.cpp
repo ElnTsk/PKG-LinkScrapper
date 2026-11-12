@@ -47,7 +47,6 @@ enum Ids {
   IDC_LIMIT,
   IDC_THRESHOLD,
   IDC_VERIFY,
-  IDC_FILTER,
   IDC_LIST,
   IDC_STATUS,
   IDC_HUNT,
@@ -208,6 +207,8 @@ struct Ui {
   bool dlFailedShown = false;
   int64_t dlHoldUntilMs = 0;
   int dlLastDone = 0;
+  int dlSeenDone = -1;
+  int dlSeenFailed = -1;
   int dlLastFailed = 0;
   HWND threshold = nullptr;
   int64_t huntStartedMs = 0;
@@ -218,7 +219,6 @@ struct Ui {
   HWND recommended = nullptr;
   HWND dark = nullptr;
   HWND reprobe = nullptr;
-  HWND filter = nullptr;
   HWND list = nullptr;
   HWND details = nullptr;
   HWND status = nullptr;
@@ -306,7 +306,7 @@ SourcesState sx;
 const Palette& palette() { return g.darkMode ? kDark : kLight; }
 
 void rebuildRows();
-void buildView(const std::string& needle);
+void buildView();
 void populateList();
 void showDetails();
 void toggleParts(int position);
@@ -615,7 +615,7 @@ void applyTheme() {
   const wchar_t* items = g.darkMode ? L"DarkMode_ItemsView" : L"";
 
   for (HWND control : {g.hint, g.games, g.console, g.limitLabel, g.limit, g.thresholdLabel, g.threshold,
-                       g.verify, g.recommended, g.dark, g.reprobe, g.filter, g.details, g.status, g.hunt,
+                       g.verify, g.recommended, g.dark, g.reprobe, g.details, g.status, g.hunt,
                        g.stop, g.exportBtn, g.reload, g.download, g.linkEdit, g.linkAdd}) {
     themeWindow(control, scheme);
   }
@@ -623,7 +623,7 @@ void applyTheme() {
 
   // the shell draws both edge styles light on Windows 10, so these controls
   // carry no border style at all and the frame is painted in the palette
-  for (HWND control : {g.games, g.limit, g.threshold, g.filter, g.details, g.list}) {
+  for (HWND control : {g.games, g.limit, g.threshold, g.details, g.list}) {
     installFlatFrame(control);
     if (control != g.list) {
       // the number boxes centre their text: any margin shows as an offset
@@ -731,16 +731,8 @@ void rebuildRows() {
   }
 
   g.rows.clear();
-  std::string needle = toLowerAscii(collapseSpaces(trim(editText(g.filter))));
 
   for (size_t index = 0; index < g.display.size(); ++index) {
-    const Hit& hit = g.display[index];
-    if (!needle.empty()) {
-      std::string haystack = toLowerAscii(hit.game + " " + hit.console + " " + hit.state + " " +
-                                          hit.trust + " " + hit.host + " " + hit.title + " " +
-                                          hit.source + " " + hit.url);
-      if (haystack.find(needle) == std::string::npos) continue;
-    }
     g.rows.push_back(static_cast<int>(index));
   }
 
@@ -753,12 +745,12 @@ void rebuildRows() {
     });
   }
 
-  buildView(needle);
+  buildView();
 }
 
 // one grid row per part-set, and the set's members as indented children under
 // it whenever that row is opened
-void buildView(const std::string& needle) {
+void buildView() {
   std::map<std::string, const Hit*> members;
   for (const Hit& hit : g.hits) members[normalizeUrl(hit.url)] = &hit;
 
@@ -773,17 +765,7 @@ void buildView(const std::string& needle) {
 
     if (row.partCount < 2) continue;
 
-    bool open = g.expanded.count(row.url) != 0;
-    // a filter that only matches a member still shows the set, opened
-    if (!open && !needle.empty()) {
-      for (const std::string& url : row.partUrls) {
-        if (toLowerAscii(url).find(needle) != std::string::npos) {
-          open = true;
-          break;
-        }
-      }
-    }
-    if (!open) continue;
+    if (g.expanded.count(row.url) == 0) continue;
 
     int index = 0;
     for (const std::string& url : row.partUrls) {
@@ -1209,12 +1191,11 @@ void layoutControls() {
   MoveWindow(g.dark, x, controlRow + 2, 82, height - 2, TRUE);
   x += 82 + gap;
 
-  // the live filter fills the rest of the control row, and the download strip
-  // takes exactly that same span - no floating box, no gap after Dark
-  const int filterLeft = x;
-  const int filterWidth = std::max(120, static_cast<int>(client.right) - margin - filterLeft);
-  MoveWindow(g.filter, filterLeft, controlRow, filterWidth, height, TRUE);
-  if (g.dlBar) MoveWindow(g.dlBar, filterLeft, controlRow, filterWidth, height, TRUE);
+  // the progress track fills the rest of the control row, always visible and
+  // never editable - it is feedback, not an input
+  const int trackLeft = x;
+  const int trackWidth = std::max(120, static_cast<int>(client.right) - margin - trackLeft);
+  if (g.dlBar) MoveWindow(g.dlBar, trackLeft, controlRow, trackWidth, height, TRUE);
 
   // row two: actions on the left, the paste-a-link bar takes the rest
   x = margin;
@@ -1279,12 +1260,13 @@ LRESULT CALLBACK dlBarProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
     FillRect(dc, &area, back);
     DeleteObject(back);
     int filled = static_cast<int>(area.right * g.dlFraction);
-    if (filled < 3) filled = 3;
     if (filled > area.right) filled = area.right;
-    RECT fill{0, 0, filled, area.bottom};
-    HBRUSH tone = CreateSolidBrush(g.dlFailedVisual ? RGB(179, 55, 55) : RGB(46, 160, 67));
-    FillRect(dc, &fill, tone);
-    DeleteObject(tone);
+    if (filled > 0) {
+      RECT fill{0, 0, filled, area.bottom};
+      HBRUSH tone = CreateSolidBrush(g.dlFailedVisual ? RGB(179, 55, 55) : RGB(46, 160, 67));
+      FillRect(dc, &fill, tone);
+      DeleteObject(tone);
+    }
     if (!g.dlStatusText.empty()) {
       std::wstring text = widen(g.dlStatusText);
       SetBkMode(dc, TRANSPARENT);
@@ -2903,7 +2885,6 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       SendMessageW(g.timerLabel, WM_SETFONT, reinterpret_cast<WPARAM>(g.bold), TRUE);
       g.dlBar = createControl(window, "STATIC", "", SS_LEFT, 0, 0, instance);
       SetWindowLongPtrA(g.dlBar, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(dlBarProc));
-      ShowWindow(g.dlBar, SW_HIDE);
       g.verify = createControl(window, "BUTTON", "Verify Links", BS_OWNERDRAW | WS_TABSTOP, 0,
                                IDC_VERIFY, instance);
       g.checkVerify = true;
@@ -2927,11 +2908,6 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                                IDC_RELOAD, instance);
       g.download = createControl(window, "BUTTON", "Download",
                                  BS_OWNERDRAW | WS_TABSTOP | WS_DISABLED, 0, IDC_DOWNLOAD, instance);
-
-      g.filter = createControl(window, "EDIT", "", WS_TABSTOP | ES_AUTOHSCROLL, 0,
-                               IDC_FILTER, instance);
-      SendMessageW(g.filter, EM_SETCUEBANNER, TRUE,
-                   reinterpret_cast<LPARAM>(L"Filter the rows"));
 
       g.linkEdit = createControl(window, "EDIT", "",
                                  WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE,
@@ -3121,12 +3097,6 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           rebuildRows();
           populateList();
           setStatusText(0, recommendedOnly() ? "recommended only" : "showing everything");
-          return 0;
-        case IDC_FILTER:
-          if (HIWORD(wParam) == EN_CHANGE) {
-            rebuildRows();
-            populateList();
-          }
           return 0;
         default:
           return DefWindowProcA(window, message, wParam, lParam);
@@ -3357,7 +3327,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         } else if (!g.running && !editText(g.timerLabel).empty()) {
           setEditText(g.timerLabel, "");
         }
-        if (downloadsBusy()) {
+        {
           std::vector<DownloadItem> items = downloadsSnapshot();
           double done = 0;
           int finished = 0;
@@ -3371,50 +3341,56 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             }
             if (item.state == "failed") ++failed;
           }
-          g.dlFraction = items.empty() ? 0 : done / static_cast<double>(items.size());
-          if (g.dlFraction > 1) g.dlFraction = 1;
-          if (!g.dlWasBusy) {
-            ShowWindow(g.dlBar, SW_SHOW);
-            ShowWindow(g.filter, SW_HIDE);
-            g.dlFailedVisual = false;
-            g.dlFailedShown = false;
-          }
-          char speed[64];
-          std::snprintf(speed, sizeof(speed), "%d / %d parts  -  %.1f MB/s",
-                        static_cast<int>(done), static_cast<int>(items.size()),
-                        downloadsAggregateMBs());
-          g.dlStatusText = speed;
-          InvalidateRect(g.dlBar, nullptr, TRUE);
-          g.dlWasBusy = true;
-          g.dlHoldUntilMs = 0;
-          g.dlLastDone = finished;
-          g.dlLastFailed = failed;
-        } else if (g.dlWasBusy || (g.dlHoldUntilMs > nowMs() && g.dlHoldUntilMs > 0)) {
-          if (g.dlWasBusy) {
-            g.dlWasBusy = false;
-            // land the strip at full and hold it: green for a clean save, red
-            // when something failed, so the bar always ends in a visible state
-            g.dlFraction = 1;
-            g.dlFailedVisual = g.dlLastFailed > 0;
-            g.dlStatusText = g.dlLastFailed > 0
-                                 ? std::to_string(g.dlLastFailed) + " download(s) failed"
-                                 : std::to_string(g.dlLastDone) + " file(s) saved";
-            g.dlHoldUntilMs = nowMs() + 3000;
-            setStatusText(0, g.dlStatusText);
-            if (g.dlLastFailed > 0 && !g.dlFailedShown) {
-              g.dlFailedShown = true;
-              MessageBoxW(g.window,
-                          L"The download failed.\n\nDouble-click the row to open the link in your "
-                          L"browser.",
-                          L"PKG-LinkScrapper", MB_OK | MB_ICONWARNING);
+          if (downloadsBusy()) {
+            g.dlFraction = items.empty() ? 0 : done / static_cast<double>(items.size());
+            if (g.dlFraction > 1) g.dlFraction = 1;
+            if (!g.dlWasBusy) {
+              g.dlFailedVisual = false;
+              g.dlFailedShown = false;
             }
-          }
-          if (g.dlHoldUntilMs > 0 && nowMs() >= g.dlHoldUntilMs) {
+            char speed[64];
+            std::snprintf(speed, sizeof(speed), "%d / %d parts  -  %.1f MB/s",
+                          static_cast<int>(done), static_cast<int>(items.size()),
+                          downloadsAggregateMBs());
+            g.dlStatusText = speed;
+            g.dlWasBusy = true;
             g.dlHoldUntilMs = 0;
-            ShowWindow(g.dlBar, SW_HIDE);
-            ShowWindow(g.filter, SW_SHOW);
+            g.dlLastDone = finished;
+            g.dlLastFailed = failed;
+            g.dlSeenDone = finished;
+            g.dlSeenFailed = failed;
+            InvalidateRect(g.dlBar, nullptr, TRUE);
+          } else {
+            // a small file can land between two ticks, before busy was ever
+            // observed - the counters still move, so flash the result anyway
+            const bool landed = finished != g.dlSeenDone || failed != g.dlSeenFailed;
+            if (g.dlWasBusy || (landed && finished + failed > 0)) {
+              g.dlWasBusy = false;
+              g.dlFraction = 1;
+              g.dlFailedVisual = failed > 0;
+              g.dlStatusText = failed > 0
+                                   ? std::to_string(failed) + " download(s) failed"
+                                   : std::to_string(finished) + " file(s) saved";
+              g.dlHoldUntilMs = nowMs() + 3000;
+              setStatusText(0, g.dlStatusText);
+              if (failed > 0 && !g.dlFailedShown) {
+                g.dlFailedShown = true;
+                MessageBoxW(g.window,
+                            L"The download failed.\n\nDouble-click the row to open the link in your "
+                            L"browser.",
+                            L"PKG-LinkScrapper", MB_OK | MB_ICONWARNING);
+              }
+            }
+            g.dlSeenDone = finished;
+            g.dlSeenFailed = failed;
+            if (g.dlHoldUntilMs > 0 && nowMs() >= g.dlHoldUntilMs) {
+              g.dlHoldUntilMs = 0;
+              g.dlFraction = 0;
+              g.dlStatusText.clear();
+              g.dlFailedVisual = false;
+            }
+            InvalidateRect(g.dlBar, nullptr, TRUE);
           }
-          InvalidateRect(g.dlBar, nullptr, TRUE);
         }
         std::vector<std::string> mergeLog = downloadsTakeMergeLog();
         if (!mergeLog.empty()) setStatusText(0, mergeLog.back());
