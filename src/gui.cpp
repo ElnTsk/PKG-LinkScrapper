@@ -1184,12 +1184,27 @@ void layoutControls() {
   x += 46 + 6;
   MoveWindow(g.threshold, x, controlRow + 4, 52, 20, TRUE);
   x += 52 + gap;
-  MoveWindow(g.verify, x, controlRow + 2, 104, height - 2, TRUE);
-  x += 104 + gap;
-  MoveWindow(g.recommended, x, controlRow + 2, 132, height - 2, TRUE);
-  x += 132 + gap;
-  MoveWindow(g.dark, x, controlRow + 2, 82, height - 2, TRUE);
-  x += 82 + gap;
+  // checkbox widths follow their labels, so the gap after each one is the same
+  auto checkWidth = [](HWND control, int minWidth) {
+    wchar_t text[64] = L"";
+    GetWindowTextW(control, text, 64);
+    HDC dc = GetDC(control);
+    HGDIOBJ old = SelectObject(dc, g.font);
+    SIZE size{};
+    GetTextExtentPoint32W(dc, text, lstrlenW(text), &size);
+    SelectObject(dc, old);
+    ReleaseDC(control, dc);
+    return std::max(minWidth, 2 + 14 + 5 + static_cast<int>(size.cx) + 10);
+  };
+  const int verifyWidth = checkWidth(g.verify, 80);
+  const int recommendedWidth = checkWidth(g.recommended, 80);
+  const int darkWidth = checkWidth(g.dark, 60);
+  MoveWindow(g.verify, x, controlRow + 2, verifyWidth, height - 2, TRUE);
+  x += verifyWidth + gap;
+  MoveWindow(g.recommended, x, controlRow + 2, recommendedWidth, height - 2, TRUE);
+  x += recommendedWidth + gap;
+  MoveWindow(g.dark, x, controlRow + 2, darkWidth, height - 2, TRUE);
+  x += darkWidth + gap;
   const int controlEnd = x;
 
   // row two: the six action buttons shrink before the right-hand controls can
