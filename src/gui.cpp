@@ -1903,6 +1903,41 @@ bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
   return true;
 }
 
+// the modern folder picker, opened at the last used folder. Empty means the
+// user cancelled and nothing should be queued.
+std::string chooseFolder(HWND owner, const std::string& start) {
+  IFileOpenDialog* dialog = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                              IID_PPV_ARGS(&dialog)))) {
+    return std::string();
+  }
+  DWORD options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+  }
+  if (!start.empty()) {
+    IShellItem* item = nullptr;
+    if (SUCCEEDED(SHCreateItemFromParsingName(widen(start).c_str(), nullptr, IID_PPV_ARGS(&item)))) {
+      dialog->SetFolder(item);
+      item->Release();
+    }
+  }
+  std::string picked;
+  if (SUCCEEDED(dialog->Show(owner))) {
+    IShellItem* item = nullptr;
+    if (SUCCEEDED(dialog->GetResult(&item))) {
+      PWSTR path = nullptr;
+      if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+        picked = narrow(std::wstring(path));
+        CoTaskMemFree(path);
+      }
+      item->Release();
+    }
+  }
+  dialog->Release();
+  return picked;
+}
+
 // pull whatever sits in a link box: main window or downloads window
 int queuePastedLinks(HWND edit) {
   std::vector<std::string> urls = parseLinks(editText(edit));
@@ -1910,7 +1945,12 @@ int queuePastedLinks(HWND edit) {
     setStatusText(0, "no http(s) link in the box - paste an address first");
     return 0;
   }
-  std::string folder = downloadTarget();
+  // the user chooses where this batch lands, every time
+  std::string folder = chooseFolder(dl.window ? dl.window : g.window, downloadTarget());
+  if (folder.empty()) {
+    setStatusText(0, "no folder picked - nothing queued");
+    return 0;
+  }
   if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
     CreateDirectoryA(folder.c_str(), nullptr);
   }
