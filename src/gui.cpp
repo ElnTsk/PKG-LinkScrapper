@@ -62,6 +62,8 @@ enum Ids {
   IDC_DETAILS,
   IDC_DOWNLOAD,
   IDC_TIMER_LABEL,
+  IDC_LINK_EDIT,
+  IDC_LINK_ADD,
 };
 
 enum DlIds {
@@ -209,6 +211,9 @@ struct Ui {
   int dlLastFailed = 0;
   HWND threshold = nullptr;
   int64_t huntStartedMs = 0;
+  HWND linkEdit = nullptr;
+  HWND linkAdd = nullptr;
+  WNDPROC linkProc = nullptr;
   HWND verify = nullptr;
   HWND recommended = nullptr;
   HWND dark = nullptr;
@@ -611,7 +616,7 @@ void applyTheme() {
 
   for (HWND control : {g.hint, g.games, g.console, g.limitLabel, g.limit, g.thresholdLabel, g.threshold,
                        g.verify, g.recommended, g.dark, g.reprobe, g.filter, g.details, g.status, g.hunt,
-                       g.stop, g.exportBtn, g.reload, g.download}) {
+                       g.stop, g.exportBtn, g.reload, g.download, g.linkEdit, g.linkAdd}) {
     themeWindow(control, scheme);
   }
   themeWindow(g.list, items);
@@ -996,7 +1001,7 @@ void toggleParts(int position) {
 // action carrying the system accent
 bool isCommandButton(int id) {
   return id == IDC_HUNT || id == IDC_STOP || id == IDC_REPROBE || id == IDC_EXPORT ||
-         id == IDC_RELOAD || id == IDC_DOWNLOAD;
+         id == IDC_RELOAD || id == IDC_DOWNLOAD || id == IDC_LINK_ADD || id == IDC_DL_ADD;
 }
 
 COLORREF buttonFace(const DRAWITEMSTRUCT* item) {
@@ -1202,8 +1207,15 @@ void layoutControls() {
   MoveWindow(g.recommended, x, controlRow + 2, 132, height - 2, TRUE);
   x += 132 + gap;
   MoveWindow(g.dark, x, controlRow + 2, 82, height - 2, TRUE);
+  x += 82 + gap;
 
-  // row two: actions on the left, the live filter on the right
+  // the live filter sits at the end of the control row
+  const int filterWidth = std::min(240, std::max(140, static_cast<int>(client.right) - margin - x));
+  int filterLeft = std::max(x, static_cast<int>(client.right) - margin - filterWidth);
+  MoveWindow(g.filter, filterLeft, controlRow, filterWidth, height, TRUE);
+  if (g.dlBar) MoveWindow(g.dlBar, filterLeft, controlRow, filterWidth, height, TRUE);
+
+  // row two: actions on the left, the paste-a-link bar on the right
   x = margin;
   const int buttonWidth = 108;
   MoveWindow(g.hunt, x, buttonRow, buttonWidth, height, TRUE);
@@ -1219,10 +1231,12 @@ void layoutControls() {
   MoveWindow(g.download, x, buttonRow, buttonWidth, height, TRUE);
   x += buttonWidth + gap + gap;
 
-  const int filterWidth = std::min(260, std::max(150, static_cast<int>(client.right) - margin - x));
-  int filterLeft = std::max(x, static_cast<int>(client.right) - margin - filterWidth);
-  MoveWindow(g.filter, filterLeft, buttonRow, filterWidth, height, TRUE);
-  if (g.dlBar) MoveWindow(g.dlBar, filterLeft, buttonRow, filterWidth, height, TRUE);
+  const int addWidth = 64;
+  int linkWidth = std::max(180, static_cast<int>(client.right) - margin - x - addWidth - gap);
+  linkWidth = std::min(linkWidth, 420);
+  int linkLeft = std::max(x, static_cast<int>(client.right) - margin - addWidth - gap - linkWidth);
+  MoveWindow(g.linkEdit, linkLeft, buttonRow + 2, linkWidth, height - 4, TRUE);
+  MoveWindow(g.linkAdd, linkLeft + linkWidth + gap, buttonRow + 2, addWidth, height - 4, TRUE);
 
   MoveWindow(g.list, margin, listTop, width, client.bottom - listTop - statusHeight - detailsHeight - margin - gap, TRUE);
   MoveWindow(g.details, margin, client.bottom - statusHeight - detailsHeight - margin, width, detailsHeight, TRUE);
@@ -1302,6 +1316,19 @@ LRESULT CALLBACK urlEditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
     return 0;
   }
   return CallWindowProcA(dl.urlProc, hwnd, message, wParam, lParam);
+}
+
+LRESULT CALLBACK linkEditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+  if (message == WM_KEYDOWN && wParam == VK_RETURN) {
+    HWND parent = GetParent(hwnd);
+    HWND add = GetDlgItem(parent, IDC_LINK_ADD);
+    if (add) {
+      SendMessageW(parent, WM_COMMAND, MAKEWPARAM(IDC_LINK_ADD, BN_CLICKED),
+                   reinterpret_cast<LPARAM>(add));
+    }
+    return 0;
+  }
+  return CallWindowProcA(g.linkProc, hwnd, message, wParam, lParam);
 }
 
 void progressSink(const char* line, int level) {
@@ -1867,6 +1894,31 @@ bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
   return true;
 }
 
+// pull whatever sits in a link box: main window or downloads window
+int queuePastedLinks(HWND edit) {
+  std::vector<std::string> urls = parseLinks(editText(edit));
+  if (urls.empty()) {
+    setStatusText(0, "no http(s) link in the box - paste an address first");
+    return 0;
+  }
+  std::string folder = downloadTarget();
+  if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    CreateDirectoryA(folder.c_str(), nullptr);
+  }
+  downloadsFolderRemember(folder);
+  int queued = queueLinks(urls, folder, 0);
+  dl.allPaused = false;
+  if (queued > 0) showDownloadsWindow();
+  refreshDownloads();
+  if (queued > 0) {
+    setEditText(edit, "");
+    setStatusText(0, std::to_string(queued) + " link(s) queued - saving to " + folder);
+  } else {
+    setStatusText(0, "nothing pullable in those links");
+  }
+  return queued;
+}
+
 void layoutDownloads() {
   if (!dl.window) return;
   RECT client{};
@@ -2181,25 +2233,7 @@ LRESULT CALLBACK downloadsProc(HWND window, UINT message, WPARAM wParam, LPARAM 
           return 0;
         }
         case IDC_DL_ADD: {
-          std::vector<std::string> urls = parseLinks(editText(dl.url));
-          if (urls.empty()) {
-            setStatusText(0, "no http(s) link in the box - paste an address first");
-            return 0;
-          }
-          std::string folder = downloadTarget();
-          if (GetFileAttributesA(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
-            CreateDirectoryA(folder.c_str(), nullptr);
-          }
-          downloadsFolderRemember(folder);
-          int queued = queueLinks(urls, folder, 0);
-          dl.allPaused = false;
-          refreshDownloads();
-          if (queued > 0) {
-            setEditText(dl.url, "");
-            setStatusText(0, std::to_string(queued) + " link(s) queued - saving to " + folder);
-          } else {
-            setStatusText(0, "nothing pullable in those links");
-          }
+          queuePastedLinks(dl.url);
           return 0;
         }
         default:
@@ -2890,6 +2924,16 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g.filter = createControl(window, "EDIT", "", WS_TABSTOP | ES_AUTOHSCROLL, 0,
                                IDC_FILTER, instance);
 
+      g.linkEdit = createControl(window, "EDIT", "",
+                                 WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE,
+                                 IDC_LINK_EDIT, instance);
+      SendMessageW(g.linkEdit, EM_SETCUEBANNER, TRUE,
+                   reinterpret_cast<LPARAM>(L"Paste a link, or a whole part set, then press Add"));
+      g.linkProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
+          g.linkEdit, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(linkEditProc)));
+      g.linkAdd = createControl(window, "BUTTON", "Add", BS_OWNERDRAW | WS_TABSTOP, 0, IDC_LINK_ADD,
+                                instance);
+
       g.list = CreateWindowExA(0, WC_LISTVIEWA, "",
                                WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
                                0, 0, 10, 10, window, reinterpret_cast<HMENU>(IDC_LIST), instance,
@@ -3049,6 +3093,9 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           downloadRow(*hit);
           return 0;
         }
+        case IDC_LINK_ADD:
+          queuePastedLinks(g.linkEdit);
+          return 0;
         case IDC_EXPORT:
           exportResults();
           return 0;
