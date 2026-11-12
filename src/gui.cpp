@@ -1894,6 +1894,8 @@ bool startDownloads(const std::vector<std::string>& urls, int expectedParts) {
   }
   downloadsFolderRemember(folder);
 
+  setStatusText(0, "resolving " + std::to_string(urls.size()) + " link(s)...");
+  UpdateWindow(g.status);
   int queued = queueLinks(urls, folder, expectedParts);
   if (queued <= 0) return false;
   dl.allPaused = false;
@@ -1955,6 +1957,11 @@ int queuePastedLinks(HWND edit) {
     CreateDirectoryA(folder.c_str(), nullptr);
   }
   downloadsFolderRemember(folder);
+  // resolving a share host can take a while: show the window and say so first,
+  // so a slow walk never reads as a dead click
+  showDownloadsWindow();
+  setStatusText(0, "resolving " + std::to_string(urls.size()) + " link(s)...");
+  UpdateWindow(g.status);
   int queued = queueLinks(urls, folder, 0);
   dl.allPaused = false;
   if (queued > 0) showDownloadsWindow();
