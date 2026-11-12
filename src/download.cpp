@@ -49,6 +49,9 @@ struct Job {
   std::atomic<bool> abort{false};
   std::atomic<bool> pause{false};
   std::atomic<bool> shownPaused{false};
+  // set once the worker is done touching this job; RemoveFinished only deletes
+  // settled jobs, so Cancel -> Clear done cannot free a job mid-unwind
+  std::atomic<bool> settled{false};
 };
 
 std::mutex g_mutex;
@@ -326,7 +329,7 @@ bool curlDownload(const std::string& url, const std::string& partPath, long long
   return false;
 }
 
-void transfer(Job* job) {
+void transferInner(Job* job) {
   UrlParts start = crackUrl(job->item.url);
   if (!start.valid) {
     finish(job, "failed", "not an http url");
@@ -532,6 +535,11 @@ void transfer(Job* job) {
   }
 }
 
+void transfer(Job* job) {
+  transferInner(job);
+  job->settled.store(true);
+}
+
 void workerLoop() {
   for (;;) {
     Job* job = nullptr;
@@ -544,7 +552,10 @@ void workerLoop() {
       auto found = g_jobs.find(id);
       if (found == g_jobs.end()) continue;
       job = found->second;
-      if (job->abort.load()) continue;
+      if (job->abort.load()) {
+        job->settled.store(true);
+        continue;
+      }
       job->shownPaused.store(false);
       job->item.state = "running";
     }
@@ -700,7 +711,11 @@ void downloadsCancel(const std::string& id) {
   if (found == g_jobs.end()) return;
   found->second->abort.store(true);
   found->second->pause.store(false);
-  found->second->item.state = "cancelled";
+  // a running job is settled by its worker; anything else is safe to release
+  if (found->second->item.state != "running") {
+    found->second->item.state = "cancelled";
+    found->second->settled.store(true);
+  }
   for (size_t i = 0; i < g_ready.size(); ++i) {
     if (g_ready[i] == id) {
       g_ready.erase(g_ready.begin() + static_cast<long>(i));
@@ -716,7 +731,8 @@ void downloadsRemoveFinished() {
     auto found = g_jobs.find(id);
     if (found == g_jobs.end()) continue;
     const std::string state = found->second->item.state;
-    if (state == "done" || state == "cancelled" || state == "failed") {
+    if ((state == "done" || state == "cancelled" || state == "failed") &&
+        found->second->settled.load()) {
       delete found->second;
       g_jobs.erase(found);
       continue;

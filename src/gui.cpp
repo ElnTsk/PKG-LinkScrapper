@@ -3629,7 +3629,36 @@ std::vector<std::string> commandTokens() {
 
 }  // namespace
 
+// a crash the shell shows as "memory could not be read" is useless without the
+// module; log code, address and owning module before Windows handles it
+LONG WINAPI crashFilter(EXCEPTION_POINTERS* info) {
+  const char* appdata = std::getenv("APPDATA");
+  std::string file = std::string(appdata && *appdata ? appdata : ".") + "\\PKG-LinkScrapper\\crash.txt";
+  FILE* out = std::fopen(file.c_str(), "a");
+  if (out) {
+    EXCEPTION_RECORD* record = info ? info->ExceptionRecord : nullptr;
+    void* address = record ? record->ExceptionAddress : nullptr;
+    char module[MAX_PATH] = "?";
+    HMODULE handle = nullptr;
+    if (address &&
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCSTR>(address), &handle) &&
+        handle) {
+      GetModuleFileNameA(handle, module, MAX_PATH);
+    }
+    SYSTEMTIME now{};
+    GetLocalTime(&now);
+    std::fprintf(out, "%04d-%02d-%02d %02d:%02d:%02d  code=0x%08lX  address=%p  module=%s\n",
+                 now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+                 static_cast<unsigned long>(record ? record->ExceptionCode : 0), address, module);
+    std::fclose(out);
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
+  SetUnhandledExceptionFilter(crashFilter);
   INITCOMMONCONTROLSEX init{};
   init.dwICC = ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES | ICC_BAR_CLASSES;
   InitCommonControlsEx(&init);
