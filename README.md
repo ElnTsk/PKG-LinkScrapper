@@ -27,7 +27,7 @@ Made by [**&lt;/ElonTusk&gt;**](https://github.com/ElnTsk).
 1. Double-click `PKG-LinkScrapper.exe`.
 2. Type a game name in the big box — one per line, or several on one line
    separated by `;`.
-3. Pick `PS4` or `PS5` (or leave it on `Both`) and press **Hunt** (or Ctrl+Enter).
+3. Pick `PS4` or `PS5` (or leave it on `All`) and press **Hunt** (or Ctrl+Enter).
 
 A hunt runs for at most **30 seconds** — the countdown sits next to the `Match`
 field. When the clock runs out the grid keeps what was found; rows still marked
@@ -42,7 +42,7 @@ A one-game hunt usually takes 30–90 seconds.
 | --- | --- |
 | Games box | one title per line; `#` starts a comment line |
 | Ctrl+Enter | start hunting; the 30s countdown shows next to `Match` |
-| console dropdown | `Both`, `PS4`, `PS5` |
+| console dropdown | `All`, `PS4`, `PS5` |
 | `links/game` | how many rows to keep per game (a part set counts as one row) |
 | `match` | name strictness, 0.5 loose → 1.0 exact |
 | verify links | probe every link for liveness and file size |
@@ -266,14 +266,14 @@ not the flags.)
 
 ```
 PKG-LinkScrapper-cli.exe "elden ring" "god of war ragnarok" --console ps4
-PKG-LinkScrapper-cli.exe -i games.txt --console both --format json -o found.json
+PKG-LinkScrapper-cli.exe -i games.txt --console all --format json -o found.json
 type games.txt | PKG-LinkScrapper-cli.exe --stdin --console ps5
 PKG-LinkScrapper-cli.exe --sources
 ```
 
 | flag | meaning |
 | --- | --- |
-| `--console ps4\|ps5\|both` | console filter (default both) |
+| `--console ps4\|ps5\|all` | console filter (default all) |
 | `--threshold <0..1>` | name strictness (default 0.72) |
 | `--limit <n>` | rows per game (default 40) |
 | `--max-fetch <n>` | pages crawled per game (default 32) |

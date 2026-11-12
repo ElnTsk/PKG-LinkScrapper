@@ -47,7 +47,7 @@ std::string helpText() {
   text += "  --stdin                        read game names from stdin\n";
   text += "\n";
   text += "search:\n";
-  text += "  --console <ps4|ps5|both>       default both\n";
+  text += "  --console <ps4|ps5|all>        default all\n";
   text += "  --threshold <0..1>             name match strictness, default from config (0.72)\n";
   text += "  --limit <n>                    max hits per game, default from config (40)\n";
   text += "  --max-fetch <n>                max pages crawled per game, default from config (32)\n";
@@ -81,7 +81,7 @@ std::string helpText() {
 struct Options {
   std::vector<std::string> games;
   std::vector<std::string> files;
-  std::string console = "both";
+  std::string console = "all";
   std::string format = "table";
   std::string out;
   std::string configPath;
@@ -209,8 +209,10 @@ bool parseArgs(int argc, char** argv, Options& opts, std::string& error) {
 
   if (!error.empty()) return false;
 
-  if (opts.console != "ps4" && opts.console != "ps5" && opts.console != "both") {
-    error = "--console must be ps4, ps5, or both (got \"" + opts.console + "\")";
+  // "both" was the old name for the same thing; keep accepting it
+  if (opts.console == "both") opts.console = "all";
+  if (opts.console != "ps4" && opts.console != "ps5" && opts.console != "all") {
+    error = "--console must be ps4, ps5, or all (got \"" + opts.console + "\")";
     return false;
   }
   if (opts.format != "table" && opts.format != "json" && opts.format != "csv" && opts.format != "tsv") {
@@ -449,7 +451,7 @@ void interactiveRun(Options& opts, Config& config) {
   std::printf("PKG-LinkScrapper %s - %d sources - made by </ElonTusk>\n", kVersion,
               static_cast<int>(config.sources.size()));
   std::printf("type game names, one per line, then a blank line to hunt.\n");
-  std::printf("console: ps4 ps5 both   format: table json csv tsv   sources: list|disable <name>   rec: recommended only   q: quit\n\n");
+  std::printf("console: ps4 ps5 all   format: table json csv tsv   sources: list|disable <name>   rec: recommended only   q: quit\n\n");
 
   auto splitSemicolons = [](const std::string& value) {
     std::vector<std::string> parts;
@@ -492,8 +494,8 @@ void interactiveRun(Options& opts, Config& config) {
     }
 
     if (command == "q" || command == "quit" || command == "exit") break;
-    if (command == "ps4" || command == "ps5" || command == "both") {
-      opts.console = command;
+    if (command == "ps4" || command == "ps5" || command == "all" || command == "both") {
+      opts.console = command == "both" ? "all" : command;
       continue;
     }
     if (command == "table" || command == "json" || command == "csv" || command == "tsv") {

@@ -52,7 +52,7 @@ void warmCatalogs(const Config& config);
 // The list must outlive the hunt.
 void setDeadStore(const std::vector<std::string>* urls);
 
-// consolePref: "ps4" | "ps5" | "both"
+// consolePref: "ps4" | "ps5" | "all" ("both" is accepted as the old spelling)
 HuntResult huntGame(const std::string& game, const std::string& consolePref, const Config& config,
                     ThreadPool& pool);
 

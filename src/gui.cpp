@@ -346,7 +346,7 @@ int comboIndex(HWND combo) {
 }
 
 std::string selectedConsole() {
-  static const char* values[] = {"both", "ps4", "ps5"};
+  static const char* values[] = {"all", "ps4", "ps5"};
   return values[comboIndex(g.console)];
 }
 
@@ -366,7 +366,8 @@ std::string consoleLabel(const std::string& value) {
   std::string lower = toLowerAscii(value);
   if (lower == "ps4") return "PS4";
   if (lower == "ps5") return "PS5";
-  if (lower.empty() || lower == "?" || lower == "both") return "Any";
+  if (lower == "ps3") return "PS3";
+  if (lower.empty() || lower == "?" || lower == "all" || lower == "both") return "Any";
   return value;
 }
 
@@ -671,7 +672,7 @@ std::string columnText(const Hit& hit, int column) {
     }
   }
   switch (column) {
-    case 0: return consoleLabel(hit.console.empty() ? "both" : hit.console);
+    case 0: return consoleLabel(hit.console.empty() ? "all" : hit.console);
     case 1: return hit.state;
     case 2: return hit.trust;
     case 3: return hit.size;
@@ -2743,7 +2744,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g.console = createControl(window, "COMBOBOX", "",
                                 CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | WS_TABSTOP, 0, IDC_CONSOLE,
                                 instance);
-      fillCombo(g.console, {"Both", "PS4", "PS5"}, 0);
+      fillCombo(g.console, {"All", "PS4", "PS5"}, 0);
       g.limitLabel = createControl(window, "STATIC", "Links/Game", SS_RIGHT, 0, IDC_LIMIT_LABEL, instance);
       g.limit = createControl(window, "EDIT", "40", ES_NUMBER | WS_TABSTOP | ES_CENTER, 0,
                               IDC_LIMIT, instance);
@@ -2861,7 +2862,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       DeleteObject(background);
       SetTextColor(item->hDC, p.text);
       SetBkMode(item->hDC, TRANSPARENT);
-      static const wchar_t* kConsoleItems[] = {L"Both", L"PS4", L"PS5"};
+      static const wchar_t* kConsoleItems[] = {L"All", L"PS4", L"PS5"};
       const wchar_t* label = kConsoleItems[std::min<size_t>(
           static_cast<size_t>(item->itemID), sizeof(kConsoleItems) / sizeof(kConsoleItems[0]) - 1)];
       RECT text = item->rcItem;

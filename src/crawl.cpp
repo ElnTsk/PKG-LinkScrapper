@@ -122,7 +122,8 @@ void recordHit(Ctx& ctx,
     if (!fromSlug.empty()) detected = fromSlug;
   }
 
-  if (ctx.pref != "both" && !detected.empty() && detected != toUpperAscii(ctx.pref)) return;
+  const bool anyConsole = ctx.pref == "all" || ctx.pref == "both";
+  if (!anyConsole && !detected.empty() && detected != toUpperAscii(ctx.pref)) return;
 
   Hit hit;
   hit.game = ctx.game;
@@ -542,7 +543,8 @@ void runCatalog(Ctx& ctx, const Source& source) {
   const std::string consoleHint =
       source.console.empty() ? std::string() : toUpperAscii(source.console);
   // a ps4 catalog cannot answer a ps5 hunt - do not spend the download on it
-  if (!consoleHint.empty() && ctx.pref != "both" && consoleHint != toUpperAscii(ctx.pref)) {
+  const bool anyConsole = ctx.pref == "all" || ctx.pref == "both";
+  if (!consoleHint.empty() && !anyConsole && consoleHint != toUpperAscii(ctx.pref)) {
     logDebug(source.name + " skipped - catalog is " + consoleHint + ", hunt is " + ctx.pref);
     return;
   }
@@ -723,7 +725,8 @@ void runIndex(Ctx& ctx, const Source& source) {
 void setDeadStore(const std::vector<std::string>* urls) { g_dead = urls; }
 
 std::vector<std::string> consolesFor(const std::string& consolePref) {
-  if (consolePref == "both") return {"PS4", "PS5"};
+  // "both" is the pre-rename spelling of "all"; PS3 joins this list when it lands
+  if (consolePref == "all" || consolePref == "both") return {"PS4", "PS5"};
   return {toUpperAscii(consolePref)};
 }
 
