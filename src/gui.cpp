@@ -1168,6 +1168,8 @@ void layoutControls() {
   const int width = client.right - margin * 2;
 
   MoveWindow(g.hint, margin, labelRow, width, 16, TRUE);
+  // the hunt countdown rides the label row, right-aligned, out of the controls
+  MoveWindow(g.timerLabel, static_cast<int>(client.right) - margin - 64, labelRow, 64, 16, TRUE);
   MoveWindow(g.games, margin, gamesTop, width, gamesHeight, TRUE);
 
   // row one: what to hunt and how strict to be
@@ -1182,8 +1184,6 @@ void layoutControls() {
   x += 46 + 4;
   MoveWindow(g.threshold, x, controlRow + 4, 52, 20, TRUE);
   x += 52 + gap;
-  MoveWindow(g.timerLabel, x, controlRow + 4, 60, 16, TRUE);
-  x += 60 + gap;
   MoveWindow(g.verify, x, controlRow + 2, 104, height - 2, TRUE);
   x += 104 + gap;
   MoveWindow(g.recommended, x, controlRow + 2, 132, height - 2, TRUE);
@@ -2884,7 +2884,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                                         instance);
       g.threshold = createControl(window, "EDIT", "0.72", WS_TABSTOP | ES_CENTER, 0,
                                   IDC_THRESHOLD, instance);
-      g.timerLabel = createControl(window, "STATIC", "", SS_LEFT, 0, IDC_TIMER_LABEL, instance);
+      g.timerLabel = createControl(window, "STATIC", "", SS_RIGHT, 0, IDC_TIMER_LABEL, instance);
       SendMessageW(g.timerLabel, WM_SETFONT, reinterpret_cast<WPARAM>(g.bold), TRUE);
       g.dlBar = createControl(window, "STATIC", "", SS_LEFT, 0, 0, instance);
       SetWindowLongPtrA(g.dlBar, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(dlBarProc));
