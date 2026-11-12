@@ -2136,7 +2136,7 @@ LRESULT CALLBACK downloadsProc(HWND window, UINT message, WPARAM wParam, LPARAM 
                              WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE, IDC_DL_URL,
                              instance);
       SendMessageW(dl.url, EM_SETCUEBANNER, TRUE,
-                   reinterpret_cast<LPARAM>(L"Paste a link, or a whole part set, then press Add"));
+                   reinterpret_cast<LPARAM>(L"Paste link here"));
       dl.urlProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
           dl.url, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(urlEditProc)));
       dl.add = createControl(window, "BUTTON", "Add", BS_OWNERDRAW | WS_TABSTOP, 0, IDC_DL_ADD,
@@ -2928,7 +2928,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                                  WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE,
                                  IDC_LINK_EDIT, instance);
       SendMessageW(g.linkEdit, EM_SETCUEBANNER, TRUE,
-                   reinterpret_cast<LPARAM>(L"Paste a link, or a whole part set, then press Add"));
+                   reinterpret_cast<LPARAM>(L"Paste link here"));
       g.linkProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(
           g.linkEdit, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(linkEditProc)));
       g.linkAdd = createControl(window, "BUTTON", "Add", BS_OWNERDRAW | WS_TABSTOP, 0, IDC_LINK_ADD,
