@@ -410,7 +410,14 @@ void transferInner(Job* job) {
     }
 
     if (status < 200 || status >= 300) {
-      finish(job, "failed", "http " + std::to_string(status) + " from " + parts.host);
+      std::string host = toLowerAscii(parts.host);
+      if ((status == 401 || status == 403) &&
+          host.find("playstation.net") != std::string::npos) {
+        finish(job, "failed",
+               "PSN link expired or region-locked (403) - fetch a fresh one");
+      } else {
+        finish(job, "failed", "http " + std::to_string(status) + " from " + parts.host);
+      }
       return;
     }
 

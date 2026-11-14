@@ -1947,6 +1947,31 @@ int queuePastedLinks(HWND edit) {
     setStatusText(0, "no http(s) link in the box - paste an address first");
     return 0;
   }
+
+  // a tracker or release page is not a file: its download needs their captcha
+  // or form, which only a browser session has. Those go to the browser; only
+  // links that can actually yield bytes are queued.
+  std::vector<std::string> files;
+  std::vector<std::string> pages;
+  for (const std::string& url : urls) {
+    const std::string kind = classify(url);
+    if (kind == "direct" || (kind == "filehost" && resolvableHost(url))) {
+      files.push_back(url);
+    } else {
+      pages.push_back(url);
+    }
+  }
+  for (const std::string& page : pages) {
+    ShellExecuteA(g.window, "open", page.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+  }
+  if (files.empty()) {
+    setStatusText(0, pages.size() == 1
+                         ? "that is a page, not a file - opened it in the browser"
+                         : "those are pages, not files - opened them in the browser");
+    return 0;
+  }
+  urls = files;
+
   // the user chooses where this batch lands, every time
   std::string folder = chooseFolder(dl.window ? dl.window : g.window, downloadTarget());
   if (folder.empty()) {
@@ -1968,7 +1993,10 @@ int queuePastedLinks(HWND edit) {
   refreshDownloads();
   if (queued > 0) {
     setEditText(edit, "");
-    setStatusText(0, std::to_string(queued) + " link(s) queued - saving to " + folder);
+    setStatusText(0, std::to_string(queued) + " link(s) queued - saving to " + folder +
+                         (pages.empty() ? std::string()
+                                        : " (" + std::to_string(pages.size()) +
+                                              " page(s) opened in the browser)"));
   } else {
     setStatusText(0, "nothing pullable in those links");
   }
