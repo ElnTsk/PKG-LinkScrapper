@@ -14,8 +14,8 @@ in one list: alive, dead, size, host, where it came from.
   <img src="docs/window.png" width="720" alt="PKG-LinkScrapper hunting Astro Bot">
 </p>
 
-**Download:** [PKG-LinkScrapper.exe](https://github.com/ElnTsk/PKG-LinkScrapper/releases/tag/v1.0-beta)
-— one file, no installer, no runtime. Double-click it. **v1.0 beta** — the
+**Download:** [PKG-LinkScrapper.exe](https://github.com/ElnTsk/PKG-LinkScrapper/releases/tag/v1.0.1-beta)
+— one file, no installer, no runtime. Double-click it. **v1.0.1 beta** — the
 report button is there for the misses.
 
 Made by [**&lt;/ElonTusk&gt;**](https://github.com/ElnTsk).

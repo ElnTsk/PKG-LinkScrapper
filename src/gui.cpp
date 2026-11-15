@@ -1961,7 +1961,9 @@ int queuePastedLinks(HWND edit) {
       pages.push_back(url);
     }
   }
+  size_t opened = 0;
   for (const std::string& page : pages) {
+    if (opened++ >= 5) break;
     ShellExecuteA(g.window, "open", page.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
   }
   if (files.empty()) {

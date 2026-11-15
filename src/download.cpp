@@ -592,11 +592,13 @@ std::vector<std::string> downloadsAdd(const std::vector<std::string>& urls,
   if (folder.empty() || urls.empty()) return ids;
 
   std::lock_guard<std::mutex> lock(g_mutex);
+  // ids must never repeat, even after finished rows are cleared
+  static std::atomic<unsigned long long> nextJobId{1};
   for (size_t position = 0; position < urls.size(); ++position) {
     const std::string& url = urls[position];
     if (url.empty()) continue;
     Job* job = new Job();
-    job->item.id = url + "#" + std::to_string(g_order.size() + 1);
+    job->item.id = url + "#" + std::to_string(nextJobId.fetch_add(1));
     job->item.url = url;
     std::string given = position < names.size() ? sanitize(names[position]) : std::string();
     job->item.name = given.empty() ? nameForUrl(url) : given;
@@ -747,6 +749,18 @@ void downloadsRemoveFinished() {
     keep.push_back(id);
   }
   g_order = keep;
+  // drop merge groups whose members no longer exist, so the list cannot grow
+  // across a long session
+  g_mergeGroups.erase(
+      std::remove_if(g_mergeGroups.begin(), g_mergeGroups.end(),
+                     [](const MergeGroup& group) {
+                       if (!group.fired && !group.blocked) return false;
+                       for (const std::string& id : group.ids) {
+                         if (g_jobs.count(id)) return false;
+                       }
+                       return true;
+                     }),
+      g_mergeGroups.end());
 }
 
 void downloadsAbort() {
